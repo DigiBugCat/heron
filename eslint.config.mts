@@ -12,6 +12,8 @@ export default tseslint.config(
 		'version-bump.mjs',
 		'scripts',
 		'test-vault',
+		// Agent and tool worktrees live here; they are separate checkouts.
+		'.claude',
 		'tests/fixtures',
 		'versions.json',
 		'main.js',
