@@ -17,7 +17,7 @@ export default class SourceObserverPlugin extends Plugin {
 
 		this.registerView(VIEW_TYPE, (leaf) => new SourceObserverView(leaf, this));
 
-		this.addRibbonIcon('code-2', 'Source observer', () => { void this.activateView(); });
+		this.addRibbonIcon('code-2', 'Heron', () => { void this.activateView(); });
 
 		registerCommands(this);
 		registerLinks(this);
@@ -25,7 +25,7 @@ export default class SourceObserverPlugin extends Plugin {
 		this.addSettingTab(new SourceObserverSettingTab(this.app, this));
 	}
 
-	/** Opens the Source Observer tab, reusing an existing leaf if one is already open. */
+	/** Opens the Heron tab, reusing an existing leaf if one is already open. */
 	async activateView(): Promise<SourceObserverView | null> {
 		const { workspace } = this.app;
 		let leaf: WorkspaceLeaf | undefined = workspace.getLeavesOfType(VIEW_TYPE)[0];

@@ -1,10 +1,9 @@
 {
-	"id": "source-observer",
-	"name": "Source Observer",
-	"version": "1.1.0",
+	"id": "heron",
+	"name": "Heron",
+	"version": "0.1.0",
 	"minAppVersion": "1.7.2",
-	"description": "Browse any local codebase, view syntax-highlighted files, and review git diffs — without leaving your vault.",
-	"author": "Iskandar Sitdikov",
-	"authorUrl": "https://github.com/IceKhan13",
+	"description": "Read and navigate any local codebase with language-server navigation, git history and diffs, without leaving your vault.",
+	"author": "Andrew Sulistio",
 	"isDesktopOnly": true
 }

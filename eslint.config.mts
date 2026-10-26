@@ -9,6 +9,8 @@ export default tseslint.config(
 		'dist',
 		'esbuild.config.mjs',
 		'version-bump.mjs',
+		'scripts',
+		'test-vault',
 		'versions.json',
 		'main.js',
 		'package.json',

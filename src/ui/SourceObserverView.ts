@@ -21,7 +21,7 @@ import { FilesSection } from './sidebar/FilesSection';
 import { HistorySection } from './sidebar/HistorySection';
 import { SearchSection } from './sidebar/SearchSection';
 
-export const VIEW_TYPE = 'source-observer';
+export const VIEW_TYPE = 'heron';
 
 /** Delay before reloading the open file or diff after a change, in ms. */
 const PANE_RELOAD_DEBOUNCE_MS = 250;
@@ -70,7 +70,7 @@ export class SourceObserverView extends ItemView {
 	}
 
 	getViewType() { return VIEW_TYPE; }
-	getDisplayText() { return 'Source observer'; }
+	getDisplayText() { return 'Heron'; }
 	getIcon() { return 'code-2'; }
 
 	onOpen(): Promise<void> {

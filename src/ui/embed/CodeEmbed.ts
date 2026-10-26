@@ -31,8 +31,8 @@ export function sliceLines(text: string, from: number, to: number): { text: stri
 
 /**
  * A live, read-only excerpt of a file inside a note, rendered for
- * ```source-observer blocks. It re-reads the file when it changes on disk;
- * the header opens the location in Source Observer.
+ * ```heron blocks. It re-reads the file when it changes on disk;
+ * the header opens the location in Heron.
  */
 export class CodeEmbed extends MarkdownRenderChild {
 	private bodyEl: HTMLElement;
@@ -47,7 +47,7 @@ export class CodeEmbed extends MarkdownRenderChild {
 		const [icon, cls] = fileIcon(path.basename(spec.absPath));
 		setIcon(header.createSpan({ cls: `so-embed-icon ${cls}` }), icon);
 		header.createSpan({ cls: 'so-embed-label', text: describeLocation(spec.location) });
-		header.title = `Open ${spec.absPath} in Source Observer`;
+		header.title = `Open ${spec.absPath} in Heron`;
 		this.bodyEl = containerEl.createDiv({ cls: 'so-embed-body' });
 
 		const open = (evt: Event) => {

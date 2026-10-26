@@ -1,8 +1,10 @@
-# Source Observer
+# Heron
 
-An Obsidian plugin for browsing local code: open any folder, read files with syntax highlighting, and review git changes. Read-only and offline.
+An Obsidian plugin for reading local code: open any folder, read files with syntax highlighting, navigate with language servers, and review git changes. Read-only.
 
-![Source Observer](docs/images/hero.png)
+Heron is a fork of [Source Observer](https://github.com/IceKhan13/obsidian-source-observer) by Iskandar Sitdikov (MIT). The `upstream` remote points there.
+
+![Heron](docs/images/hero.png)
 
 ## Features
 
@@ -16,12 +18,12 @@ An Obsidian plugin for browsing local code: open any folder, read files with syn
 
 ## Usage
 
-Run **Source Observer: Open**, then select **Open folder…** at the top of the sidebar. All actions are also available as commands under **Source Observer:** in the command palette. In the viewer, <kbd>Mod</kbd>+<kbd>F</kbd> finds in the open file and <kbd>Mod</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> searches all files.
+Run **Heron: Open**, then select **Open folder…** at the top of the sidebar. All actions are also available as commands under **Heron:** in the command palette. In the viewer, <kbd>Mod</kbd>+<kbd>F</kbd> finds in the open file and <kbd>Mod</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> searches all files.
 
 To reference code from a note, select lines and use the link icon in the viewer header: **Copy link**, **Copy embed** or **Copy as code block**. An embed looks like this:
 
 ````markdown
-```source-observer
+```heron
 folder: /Users/me/code/my-project
 file: src/server.ts
 lines: 40-75
@@ -32,7 +34,7 @@ lines: 40-75
 
 ## Installation
 
-Install from **Settings → Community plugins → Browse**, or copy `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/IceKhan13/obsidian-source-observer/releases/latest) to `<vault>/.obsidian/plugins/source-observer/`.
+Build with `npm run build` and copy `main.js`, `manifest.json` and `styles.css` to `<vault>/.obsidian/plugins/heron/`. For development, `npm run dev:vault` links them into the test vault (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 Requires desktop Obsidian 1.7.2+. Git features need `git` on your `PATH`.
 

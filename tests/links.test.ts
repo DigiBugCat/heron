@@ -29,18 +29,18 @@ describe('parseLines', () => {
 describe('links', () => {
 	it('round-trips a location through the URI, encoding spaces and separators', () => {
 		const uri = buildUri(loc);
-		expect(uri).toBe('obsidian://source-observer?folder=%2FUsers%2Fme%2FMy%20Repo&file=src%2Fa%20b.ts&lines=10-20');
+		expect(uri).toBe('obsidian://heron?folder=%2FUsers%2Fme%2FMy%20Repo&file=src%2Fa%20b.ts&lines=10-20');
 		const params = Object.fromEntries(new URL(uri).searchParams);
 		expect(locationFromParams(params)).toEqual(loc);
 	});
 
 	it('omits lines for whole-file links and needs folder and file to open', () => {
 		expect(buildUri({ ...loc, lines: null })).not.toContain('lines=');
-		expect(locationFromParams({ action: 'source-observer', file: 'a.ts' })).toBeNull();
+		expect(locationFromParams({ action: 'heron', file: 'a.ts' })).toBeNull();
 	});
 
 	it('labels Markdown links with the path and lines, escaping brackets', () => {
-		expect(markdownLink(loc)).toMatch(/^\[src\/a b\.ts:10-20\]\(obsidian:\/\/source-observer\?/);
+		expect(markdownLink(loc)).toMatch(/^\[src\/a b\.ts:10-20\]\(obsidian:\/\/heron\?/);
 		expect(markdownLink({ ...loc, file: 'pages/[id].tsx', lines: null })).toMatch(/^\[pages\/\\\[id\\\]\.tsx\]\(/);
 	});
 });
@@ -48,7 +48,7 @@ describe('links', () => {
 describe('code blocks and embeds', () => {
 	it('writes an embed block the parser reads back', () => {
 		const block = embedBlock(loc);
-		expect(block).toBe('```source-observer\nfolder: /Users/me/My Repo\nfile: src/a b.ts\nlines: 10-20\n```');
+		expect(block).toBe('```heron\nfolder: /Users/me/My Repo\nfile: src/a b.ts\nlines: 10-20\n```');
 		const body = block.split('\n').slice(1, -1).join('\n');
 		expect(parseEmbed(body)).toEqual({ absPath: path.resolve('/Users/me/My Repo', 'src/a b.ts'), location: loc });
 	});

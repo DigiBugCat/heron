@@ -1,6 +1,6 @@
-# Source Observer — agent guide
+# Heron — agent guide
 
-Source Observer is an Obsidian community plugin (TypeScript, bundled by esbuild into `main.js`) that browses any folder on disk, shows syntax-highlighted files and git diffs, searches file contents, shows file history and blame, switches between git worktrees, and lets notes link to or embed live code. It is **desktop-only** (`isDesktopOnly: true`): it reads the file system with Node APIs and runs the user's local `git`.
+Heron (a fork of Source Observer; `upstream` remote) is an Obsidian plugin (TypeScript, bundled by esbuild into `main.js`) that browses any folder on disk, shows syntax-highlighted files and git diffs, searches file contents, shows file history and blame, switches between git worktrees, and lets notes link to or embed live code. It is **desktop-only** (`isDesktopOnly: true`): it reads the file system with Node APIs and runs the user's local `git`.
 
 User documentation is in `README.md`; contributor documentation (architecture, tests, releasing) is in `CONTRIBUTING.md`. This file is the short version for coding agents, plus the pitfalls that are easy to hit.
 
@@ -37,7 +37,7 @@ Dependencies flow one way: `ui → services → git → utils`. `git/` must not 
 
 - **Git stays read-only.** Only read-only git commands, always through `GitRepo` so `GLOBAL_ARGS` (`--no-optional-locks`, `--literal-pathspecs`, `core.quotepath=off`) applies. Never write to a repository, the index, refs or config. If you add a git command, add it to the list in the README's **Privacy** section.
 - **No network requests, no telemetry.** The plugin works offline.
-- **Never break saved data.** Command IDs, settings keys, the embed format (`source-observer` code blocks with `folder`/`file`/`lines`) and the `obsidian://source-observer` link format are public; keep them backward compatible.
+- **Never break saved data.** Command IDs, settings keys, the embed format (`heron` code blocks with `folder`/`file`/`lines`) and the `obsidian://heron` link format are public; keep them backward compatible.
 - **Don't commit build output** (`main.js`) or `node_modules/`.
 
 ## Conventions

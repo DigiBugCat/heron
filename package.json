@@ -1,11 +1,12 @@
 {
-	"name": "source-observer",
-	"version": "1.1.0",
-	"description": "Browse any local codebase, view syntax-highlighted files, and review git diffs — without leaving your vault.",
+	"name": "heron",
+	"version": "0.1.0",
+	"description": "Read and navigate any local codebase with language-server navigation, git history and diffs, without leaving your vault.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
+		"dev:vault": "node scripts/link-test-vault.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"lint": "eslint .",

@@ -2,7 +2,7 @@ import { App, PluginSettingTab, Setting } from 'obsidian';
 import type SourceObserverPlugin from '../main';
 import { DiffLayout, FONT_SIZE_RANGE } from '../settings';
 
-/** Obsidian settings tab for Source Observer. */
+/** Obsidian settings tab for Heron. */
 export class SourceObserverSettingTab extends PluginSettingTab {
 	constructor(app: App, private plugin: SourceObserverPlugin) {
 		super(app, plugin);

@@ -3,7 +3,7 @@ import { CodeEmbed } from '../ui/embed/CodeEmbed';
 import { normalizeFolderInput } from '../utils/paths';
 import { EMBED_LANGUAGE, LINK_ACTION, locationFromParams, parseEmbed } from './sourceLink';
 
-/** Registers `obsidian://source-observer` links and ```source-observer embeds. */
+/** Registers `obsidian://heron` links and ```heron embeds. */
 export function registerLinks(plugin: SourceObserverPlugin) {
 	plugin.registerObsidianProtocolHandler(LINK_ACTION, (params) => {
 		const loc = locationFromParams(params);

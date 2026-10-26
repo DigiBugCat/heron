@@ -1,28 +1,23 @@
-# Contributing to Source Observer
+# Contributing to Heron
 
-Thanks for helping. Bug reports, ideas and pull requests are all welcome — for anything bigger than a small fix, please [open an issue](https://github.com/IceKhan13/obsidian-source-observer/issues) first so we can agree on the approach.
+Heron is a fork of [Source Observer](https://github.com/IceKhan13/obsidian-source-observer). The `upstream` remote points there; merge from it to pick up fixes.
 
 ## Development setup
 
-You need Node.js 20 or later, git, and an Obsidian vault you don't mind experimenting in.
+You need Node.js 20 or later and git.
 
 ```bash
-git clone https://github.com/IceKhan13/obsidian-source-observer.git
-cd obsidian-source-observer
 npm install
+npm run build
+npm run dev:vault
 ```
 
-Link the project into a test vault so Obsidian loads your build:
-
-```bash
-ln -s "$PWD" "<vault>/.obsidian/plugins/source-observer"
-```
-
-Then enable **Source Observer** in **Settings → Community plugins** of that vault.
+`npm run dev:vault` creates `test-vault/` (git-ignored), links the build into `test-vault/.obsidian/plugins/heron` and enables it. Open that folder as a vault in Obsidian and turn off restricted mode once in **Settings → Community plugins**.
 
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Rebuilds `main.js` on every change. Reload the plugin (or Obsidian) to pick it up. |
+| `npm run dev:vault` | Links the build into `test-vault/`. |
 | `npm run build` | Type-checks and makes a production build. |
 | `npm run lint` | ESLint, including Obsidian's plugin rules. |
 | `npm test` | Unit, git integration and DOM tests with Vitest. |

@@ -1,13 +1,13 @@
 import * as path from 'path';
 
 /** Protocol action and code block language registered by the plugin. */
-export const LINK_ACTION = 'source-observer';
-export const EMBED_LANGUAGE = 'source-observer';
+export const LINK_ACTION = 'heron';
+export const EMBED_LANGUAGE = 'heron';
 
 /** Inclusive, 1-based line range. */
 export interface LineRange { from: number; to: number }
 
-/** A file, and optionally lines in it, within a folder opened in Source Observer. */
+/** A file, and optionally lines in it, within a folder opened in Heron. */
 export interface SourceLocation {
 	/** Absolute folder to open in the viewer. */
 	folder: string;
@@ -35,7 +35,7 @@ export function describeLocation(loc: SourceLocation): string {
 	return loc.lines ? `${loc.file}:${formatLines(loc.lines)}` : loc.file;
 }
 
-/** `obsidian://source-observer?folder=…&file=…&lines=…` */
+/** `obsidian://heron?folder=…&file=…&lines=…` */
 export function buildUri(loc: SourceLocation): string {
 	const params = [`folder=${encodeURIComponent(loc.folder)}`, `file=${encodeURIComponent(loc.file)}`];
 	if (loc.lines) params.push(`lines=${formatLines(loc.lines)}`);
