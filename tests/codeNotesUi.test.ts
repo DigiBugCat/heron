@@ -320,4 +320,13 @@ describe('ModelRuns', () => {
 		expect(r.cancelAll()).toBe(1);
 		await expect(pending).resolves.toBeNull();
 	});
+
+	it('returns at once when cancelled, even if the work ignores the signal', async () => {
+		const { runs: r } = runs();
+		const pending = r.run('Drawing this file', () => new Promise(() => { /* a step that cannot be interrupted */ }));
+		r.cancelAll();
+		await expect(pending).resolves.toBeNull();
+		expect(Notice.messages).toContain('Drawing this file cancelled');
+		expect(r.active).toBe(0);
+	});
 });

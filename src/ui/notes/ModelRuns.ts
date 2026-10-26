@@ -60,7 +60,11 @@ export class ModelRuns extends Component {
 			statusEl.setText(`${label}: ${step}`);
 		};
 		try {
-			return await work(controller.signal, progress);
+			// Cancelling returns at once, even while a step (e.g. waiting for a busy language server) can't be interrupted.
+			const cancelled = new Promise<never>((_, reject) => {
+				controller.signal.addEventListener('abort', () => reject(new ModelCancelled()), { once: true });
+			});
+			return await Promise.race([work(controller.signal, progress), cancelled]);
 		} catch (err) {
 			if (err instanceof ModelCancelled || controller.signal.aborted) new Notice(`${label} cancelled`);
 			else new Notice(`${label} failed: ${err instanceof Error ? err.message : String(err)}`, 10_000);
