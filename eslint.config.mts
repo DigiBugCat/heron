@@ -11,6 +11,7 @@ export default tseslint.config(
 		'version-bump.mjs',
 		'scripts',
 		'test-vault',
+		'tests/fixtures',
 		'versions.json',
 		'main.js',
 		'package.json',

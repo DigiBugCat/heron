@@ -16,6 +16,7 @@ import { showBaseMenu } from './baseMenu';
 import { promptForFolder, showFolderMenu } from './folderPicker';
 import { showWorktreeMenu } from './worktreeMenu';
 import { ContentPane } from './pane/ContentPane';
+import type { JumpKind } from './pane/codeIntel';
 import { ChangesSection } from './sidebar/ChangesSection';
 import { FilesSection } from './sidebar/FilesSection';
 import { HistorySection } from './sidebar/HistorySection';
@@ -67,6 +68,9 @@ export class SourceObserverView extends ItemView {
 			this.searchInFiles();
 			return false;
 		});
+		// Code navigation history, like Obsidian's own back and forward.
+		this.scope.register(['Mod', 'Alt'], 'ArrowLeft', () => (this.pane.canGoBack() ? (this.pane.goBack(), false) : undefined));
+		this.scope.register(['Mod', 'Alt'], 'ArrowRight', () => (this.pane.canGoForward() ? (this.pane.goForward(), false) : undefined));
 	}
 
 	getViewType() { return VIEW_TYPE; }
@@ -153,8 +157,18 @@ export class SourceObserverView extends ItemView {
 			onShow: (target) => {
 				if (target.type === 'commit') this.history.selectCommit(target.commit.hash);
 				else this.history.setFile(this.pane.currentPath());
+				if (target.type === 'file') this.files.select(target.absPath);
 			},
+			app: this.app,
+			lsp: this.plugin.lsp,
+			getRoot: () => (this.state.snapshot.kind === 'repo' ? this.state.snapshot.repo.root : this.folder || null),
+			getFolder: () => this.folder,
 		}));
+		// Mouse back and forward buttons.
+		this.registerDomEvent(main, 'mouseup', (evt) => {
+			if (evt.button === 3 && this.pane.canGoBack()) this.pane.goBack();
+			else if (evt.button === 4 && this.pane.canGoForward()) this.pane.goForward();
+		});
 
 		// ── Change detection ─────────────────────────────────────────
 		const reloadPane = debounce(() => this.pane.reload(), PANE_RELOAD_DEBOUNCE_MS, true);
@@ -189,6 +203,11 @@ export class SourceObserverView extends ItemView {
 
 		// Load the last folder without blocking the workspace.
 		if (settings.lastOpenedPath) void this.openFolder(settings.lastOpenedPath, false);
+		return Promise.resolve();
+	}
+
+	onClose(): Promise<void> {
+		this.plugin.lsp.stopAll();
 		return Promise.resolve();
 	}
 
@@ -326,6 +345,25 @@ export class SourceObserverView extends ItemView {
 		this.changes.setBase(result);
 	}
 
+	/** True when the shown file is connected to a language server. */
+	hasCodeIntel(): boolean { return this.pane.hasCodeIntel(); }
+
+	canGoBack(): boolean { return this.pane.canGoBack(); }
+
+	canGoForward(): boolean { return this.pane.canGoForward(); }
+
+	goBack() { this.pane.goBack(); }
+
+	goForward() { this.pane.goForward(); }
+
+	goTo(kind: JumpKind) { this.pane.goTo(kind); }
+
+	findReferences() { this.pane.findReferences(); }
+
+	goToSymbolInFile() { this.pane.goToSymbolInFile(); }
+
+	goToSymbolInProject() { this.pane.goToSymbolInProject(); }
+
 	/** True when a file in a git repository is shown as code. */
 	canToggleBlame(): boolean {
 		return this.pane.canBlame();
@@ -375,6 +413,8 @@ export class SourceObserverView extends ItemView {
 			await this.plugin.saveSettings();
 		}
 
+		// Servers belong to the previous project; they restart for the new one when needed.
+		if (folder !== this.folder) this.plugin.lsp.stopAll();
 		this.folder = folder;
 		this.watchKey = null;
 		this.openLabel.setText(path.basename(folder) || folder);

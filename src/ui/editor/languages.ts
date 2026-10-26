@@ -72,6 +72,9 @@ const EXT_LANG: Record<string, LanguageFactory> = {
 	sql:   legacy(standardSQL),
 };
 
+/** Extensions Heron highlights; Markdown is left to Obsidian's own editor. */
+export const CODE_EXTENSIONS: readonly string[] = Object.keys(EXT_LANG).filter((ext) => ext !== 'md' && ext !== 'mdx');
+
 /** Languages for files identified by their whole name rather than an extension. */
 const NAME_LANG: Record<string, LanguageFactory> = {
 	dockerfile: legacy(dockerFile),

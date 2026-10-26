@@ -23,6 +23,7 @@ src/main.ts          plugin lifecycle only (view, ribbon, commands, links, setti
 src/commands.ts      command palette commands — IDs are stable, never rename them
 src/settings.ts      settings model, defaults, validation
 src/links/           obsidian:// links, embed and code block formats, embed processor
+src/lsp/             language servers: framing, transport, server specs, manager (no Obsidian imports)
 src/git/             runs and parses git; parsers are pure functions
 src/services/        state and change detection (RepoState, RepoWatcher, FileIndex, ContentSearch, Worktrees)
 src/ui/              the view, sidebar sections, content pane and renderers, CodeMirror extensions, menus
@@ -36,7 +37,7 @@ Dependencies flow one way: `ui → services → git → utils`. `git/` must not 
 ## Non-negotiable rules
 
 - **Git stays read-only.** Only read-only git commands, always through `GitRepo` so `GLOBAL_ARGS` (`--no-optional-locks`, `--literal-pathspecs`, `core.quotepath=off`) applies. Never write to a repository, the index, refs or config. If you add a git command, add it to the list in the README's **Privacy** section.
-- **No network requests, no telemetry.** The plugin works offline.
+- **No network requests, no telemetry.** The plugin works offline. Language servers are the user's own programs; Heron only starts them (in the project root) and talks over stdio. Keep `src/lsp/` free of `obsidian` imports so it stays testable in Node.
 - **Never break saved data.** Command IDs, settings keys, the embed format (`heron` code blocks with `folder`/`file`/`lines`) and the `obsidian://heron` link format are public; keep them backward compatible.
 - **Don't commit build output** (`main.js`) or `node_modules/`.
 

@@ -530,6 +530,50 @@
 .so-blame-uncommitted { color: var(--text-faint); font-style: italic; }
 .so-pane-action.so-blame-toggle.is-active { color: var(--text-accent); }
 
+/* ── Code navigation ──────────────────────────────────────────── */
+.so-pane-action[disabled] { opacity: 0.35; pointer-events: none; }
+
+/* Which language server serves the file; muted while starting or busy, red when unavailable. */
+.so-lsp-status {
+	max-width: 40%;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.so-lsp-status:empty { display: none; }
+.so-lsp-status.is-ready:not(.is-busy) { color: var(--text-muted); }
+.so-lsp-status.is-failed { color: var(--text-error); }
+
+/* Hover documentation from the language server. */
+.so-code-view .cm-tooltip.cm-tooltip-hover {
+	max-width: min(640px, 80vw);
+	max-height: 320px;
+	overflow: auto;
+	padding: 4px 2px;
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	box-shadow: var(--shadow-s);
+	font-family: var(--font-interface);
+	font-size: var(--font-ui-small);
+}
+.so-code-view .cm-lsp-documentation pre,
+.so-code-view .cm-lsp-documentation code { font-family: var(--font-monospace); font-size: var(--font-ui-smaller); }
+.so-code-view .cm-lsp-documentation pre { white-space: pre-wrap; }
+
+/* References, definitions and symbols pickers. */
+.so-location-title { font-family: var(--font-monospace); font-size: var(--font-ui-small); }
+.so-location-detail {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 /* ── Folder path modal ───────────────────────────────────────── */
 .so-path-input { width: 100%; min-width: 260px; font-family: var(--font-monospace); }
 
@@ -576,3 +620,42 @@
 	font-size: var(--font-ui-small);
 }
 .so-embed-error { color: var(--text-error); }
+
+/* ── Code tabs (code files in the vault) ─────────────────────── */
+.workspace-leaf-content .view-content.heron-code-tab {
+	display: flex;
+	flex-direction: column;
+	padding: 0;
+	overflow: hidden;
+}
+.heron-code-tab .so-code-view .cm-editor { height: 100%; }
+.heron-code-message { flex: 1; }
+.view-action.is-active { color: var(--text-accent); }
+
+/* ── Git status in Obsidian's file explorer ──────────────────── */
+.nav-file-title[data-heron-git="modified"] .nav-file-title-content   { color: var(--color-orange); }
+.nav-file-title[data-heron-git="added"] .nav-file-title-content,
+.nav-file-title[data-heron-git="untracked"] .nav-file-title-content  { color: var(--color-green); }
+.nav-file-title[data-heron-git="renamed"] .nav-file-title-content    { color: var(--color-blue); }
+.nav-file-title[data-heron-git="conflicted"] .nav-file-title-content { color: var(--color-purple); }
+.nav-file-title[data-heron-git="deleted"] .nav-file-title-content    { color: var(--color-red); text-decoration: line-through; }
+.nav-folder-title.heron-git-dirty::after,
+.nav-file-title[data-heron-git]::after {
+	content: '';
+	flex-shrink: 0;
+	width: 5px;
+	height: 5px;
+	margin: auto 4px auto auto;
+	border-radius: 50%;
+	background: var(--color-orange);
+	opacity: 0.85;
+}
+.nav-file-title[data-heron-git="added"]::after,
+.nav-file-title[data-heron-git="untracked"]::after { background: var(--color-green); }
+
+/* ── Status bar: the active code tab's language server ───────── */
+.heron-status { display: inline-flex; align-items: center; gap: 5px; }
+.heron-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); }
+.heron-status.is-ready:not(.is-busy) .heron-status-dot { background: var(--color-green); }
+.heron-status.is-busy .heron-status-dot { background: var(--color-yellow); }
+.heron-status.is-failed .heron-status-dot { background: var(--color-red); }

@@ -29,3 +29,37 @@ export async function isFile(p: string): Promise<boolean> {
 		return false;
 	}
 }
+
+/**
+ * A short name for `absPath`: '/'-separated and relative to `folder` when
+ * inside it, otherwise absolute with the home folder shown as `~`.
+ */
+export function displayPath(absPath: string, folder: string): string {
+	if (folder) {
+		const rel = path.relative(folder, absPath);
+		if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) return rel.split(path.sep).join('/');
+	}
+	const home = os.homedir();
+	return absPath.startsWith(home + path.sep) ? `~${absPath.slice(home.length)}` : absPath;
+}
+
+const repoRoots = new Map<string, string | null>();
+
+/**
+ * The nearest folder at or above `dir` that holds a `.git` entry (a
+ * repository or worktree root), or null. Results are cached per folder.
+ */
+export async function findRepoRoot(dir: string): Promise<string | null> {
+	const cached = repoRoots.get(dir);
+	if (cached !== undefined) return cached;
+	let root: string | null = null;
+	try {
+		await fsp.stat(path.join(dir, '.git'));
+		root = dir;
+	} catch {
+		const parent = path.dirname(dir);
+		root = parent === dir ? null : await findRepoRoot(parent);
+	}
+	repoRoots.set(dir, root);
+	return root;
+}

@@ -25,6 +25,7 @@
 		"@codemirror/lang-rust": "^6.0.2",
 		"@codemirror/language": "^6.12.3",
 		"@codemirror/legacy-modes": "^6.5.4",
+		"@codemirror/lsp-client": "^6.3.0",
 		"@codemirror/merge": "^6.12.2",
 		"@codemirror/search": "^6.7.2",
 		"@codemirror/state": "^6.6.0",
@@ -33,6 +34,7 @@
 		"@lezer/highlight": "^1.2.1",
 		"@types/jsdom": "^21.1.7",
 		"@types/node": "^22.15.17",
+		"basedpyright": "^1.40.2",
 		"esbuild": "0.25.5",
 		"eslint": "^9.39.4",
 		"eslint-plugin-obsidianmd": "^0.3.0",
@@ -42,6 +44,7 @@
 		"obsidian": "^1.12.3",
 		"typescript": "^5.8.3",
 		"typescript-eslint": "^8.59.1",
+		"typescript-language-server": "^4.4.1",
 		"vitest": "^3.2.7"
 	}
 }

@@ -6,6 +6,7 @@ import { MergeView, unifiedMergeView } from '@codemirror/merge';
 import { gotoLine, highlightSelectionMatches, openSearchPanel, search, searchKeymap } from '@codemirror/search';
 import type { BlameCommit } from '../../git/blame';
 import type { LineRange } from '../../links/sourceLink';
+import type { Position as TextPosition } from '../../lsp/locations';
 import type { DiffLayout } from '../../settings';
 import { blameGutter } from '../editor/blameGutter';
 import { diffStats, DiffStats } from '../editor/diffStats';
@@ -99,6 +100,12 @@ function linkedLinesHighlight(doc: Text, lines: LineRange | null): Extension {
 	return EditorView.decorations.of(Decoration.set(marks));
 }
 
+/** The document offset of `pos`, clamped to the document. */
+export function offsetOf(doc: Text, pos: TextPosition): number {
+	const line = doc.line(Math.min(Math.max(pos.line + 1, 1), doc.lines));
+	return line.from + Math.min(Math.max(pos.character, 0), line.length);
+}
+
 /** What a link or code block made from the editor should cover. */
 export interface EditorSelectionInfo {
 	/** Selected lines, or null for the whole file when nothing is selected. */
@@ -119,6 +126,8 @@ export class CodeRenderer extends PaneRenderer {
 	private blame = new Compartment();
 	private blameShown = false;
 	private wrap = new Compartment();
+	private lsp = new Compartment();
+	private lspShown = false;
 
 	constructor(parent: HTMLElement, private fontSize: number, private wordWrap = false) {
 		super(parent, 'so-code-view');
@@ -136,6 +145,7 @@ export class CodeRenderer extends PaneRenderer {
 					this.font.of(fontTheme(this.fontSize)),
 					this.highlight.of([]),
 					this.wrap.of(wrapExtension(this.wordWrap)),
+					this.lsp.of([]),
 				],
 			}),
 		});
@@ -151,13 +161,30 @@ export class CodeRenderer extends PaneRenderer {
 
 	/**
 	 * Replaces the document in place and highlights `lines`, if given. Scrolls
-	 * to the highlighted lines, or back to the top, unless `keepScroll`.
+	 * to the highlighted lines, or to `cursor`, or back to the top, unless
+	 * `keepScroll`. Any language server extension is removed first, since it
+	 * belongs to the previous document.
 	 */
-	setDocument(text: string, fileName: string, keepScroll: boolean, lines: LineRange | null = null) {
+	setDocument(text: string, fileName: string, keepScroll: boolean, lines: LineRange | null = null, cursor: TextPosition | null = null) {
 		const view = this.view;
 		if (!view) return;
+		this.setLanguageServer(null);
 		const { scrollTop, scrollLeft } = view.scrollDOM;
 		const doc = Text.of(text.split(/\r\n?|\n/));
+		if (cursor && !keepScroll) {
+			const anchor = offsetOf(doc, cursor);
+			view.dispatch({
+				changes: { from: 0, to: view.state.doc.length, insert: doc },
+				effects: [
+					this.language.reconfigure(languageFor(fileName)),
+					this.highlight.reconfigure([]),
+					...(this.blameShown ? [this.blame.reconfigure(blameGutter([]))] : []),
+					EditorView.scrollIntoView(anchor, { y: 'center' }),
+				],
+				selection: EditorSelection.cursor(anchor),
+			});
+			return;
+		}
 		const range = lines && clampLines(doc, lines);
 		// Selecting the linked lines lets "Copy link" reproduce the same link.
 		const selection = range && !keepScroll
@@ -189,6 +216,30 @@ export class CodeRenderer extends PaneRenderer {
 	setBlame(lines: BlameCommit[] | null, onOpen?: (commit: BlameCommit) => void) {
 		this.blameShown = lines !== null;
 		this.view?.dispatch({ effects: this.blame.reconfigure(lines ? blameGutter(lines, onOpen) : []) });
+	}
+
+	/** Adds language server features for the current document, or removes them for null. */
+	setLanguageServer(extension: Extension | null) {
+		if (!extension && !this.lspShown) return;
+		this.lspShown = !!extension;
+		this.view?.dispatch({ effects: this.lsp.reconfigure(extension ?? []) });
+	}
+
+	/** Moves the cursor to `pos` and scrolls it to the middle of the view. */
+	moveCursor(pos: TextPosition) {
+		const view = this.view;
+		if (!view) return;
+		const anchor = offsetOf(view.state.doc, pos);
+		view.dispatch({ selection: EditorSelection.cursor(anchor), effects: EditorView.scrollIntoView(anchor, { y: 'center' }) });
+	}
+
+	/** The cursor as a zero-based line and column. */
+	cursor(): TextPosition | null {
+		const view = this.view;
+		if (!view) return null;
+		const head = view.state.selection.main.head;
+		const line = view.state.doc.lineAt(head);
+		return { line: line.number - 1, character: head - line.from };
 	}
 
 	/** True while the blame gutter is shown. */

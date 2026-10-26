@@ -44,6 +44,14 @@ src/
   links/
     sourceLink.ts             link, embed and code block formats; embed parsing
     register.ts               obsidian:// handler and code block processor
+  lsp/
+    framing.ts                LSP base protocol framing (Content-Length headers), pure
+    servers.ts                built-in servers, file → server mapping, command parsing
+    shellEnv.ts               the login shell's PATH, so GUI-launched Obsidian finds servers
+    transport.ts              stdio transport for @codemirror/lsp-client; answers some server requests
+    workspace.ts              lsp-client Workspace for Heron's single reused editor
+    locations.ts              normalizes definition, reference and symbol responses, pure
+    LspManager.ts             starts/stops one server per type and root; status and progress
   git/
     GitRepo.ts                resolves root/git dir/prefix; runs git with --no-optional-locks
     status.ts                 pure parser for `git status --porcelain=v2`
@@ -61,7 +69,9 @@ src/
   ui/
     SourceObserverView.ts     layout and wiring
     sidebar/                  Files, Search, Changes and History sections, tree, keyboard navigation
-    pane/                     content pane and its renderers (code, diff, message)
+    pane/                     content pane and its renderers (code, diff, message);
+                              codeIntel.ts adds language server navigation, navHistory.ts back/forward
+    locationModals.ts         pickers for references, definitions and symbols
     editor/                   CodeMirror theme, languages, diff stats, blame gutter
     embed/                    live code embeds rendered inside notes
     fileMenu.ts               right-click menu for files, folders and changes
@@ -78,6 +88,10 @@ A few principles hold the design together:
 - **Bounded work.** File sizes, search results, history and file indexes are capped, and watchers poll only while the view is visible.
 
 `AGENTS.md` sums up these conventions for coding agents, together with Obsidian API and git pitfalls that are easy to hit — worth a read for human contributors too.
+
+### Language servers
+
+`@codemirror/lsp-client` handles the protocol, document sync and hover. Heron does definitions, references and symbols itself (`ui/pane/codeIntel.ts`): the library's reference panel can only show files open in an editor, and owning the jumps lets back/forward record only real moves. `tests/fixtures/fake-lsp.mjs` is a tiny server used by `tests/codeNav.test.ts`. `tests/realServers.test.ts` runs against the real `typescript-language-server` and `basedpyright` dev dependencies (or the folder in `HERON_LSP_PATH`), and `npm run dev:vault` points the test vault at the same servers on its first run.
 
 ## Pull requests
 

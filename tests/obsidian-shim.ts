@@ -219,3 +219,24 @@ export class Menu {
 export class MarkdownRenderChild extends Component {
 	constructor(public containerEl: HTMLElement) { super(); }
 }
+
+/** Records opened modals instead of showing them; `Modal.opened` lists them in order. */
+export class Modal {
+	static opened: Modal[] = [];
+	constructor(public app: unknown) {}
+	open() { Modal.opened.push(this); }
+	close() { /* nothing to close */ }
+}
+
+export abstract class SuggestModal<T> extends Modal {
+	limit = 100;
+	emptyStateText = '';
+	placeholder = '';
+	setPlaceholder(placeholder: string) { this.placeholder = placeholder; }
+	abstract getSuggestions(query: string): T[] | Promise<T[]>;
+}
+
+export abstract class FuzzySuggestModal<T> extends SuggestModal<T> {
+	abstract getItems(): T[];
+	getSuggestions(): T[] { return this.getItems(); }
+}

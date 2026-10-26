@@ -1,3 +1,5 @@
+import { BUILTIN_SERVERS } from './lsp/servers';
+
 /** How diffs are laid out: one interleaved column, or old and new side by side. */
 export type DiffLayout = 'unified' | 'split';
 
@@ -17,6 +19,13 @@ export interface SourceObserverSettings {
 	compareWithBase: boolean;
 	/** Base branch chosen per repository, keyed by its common git dir. */
 	baseBranches: Record<string, string>;
+	/** Start language servers for go to definition, hover and references. */
+	languageServers: boolean;
+	/**
+	 * Command lines that replace a built-in server's default, by server ID.
+	 * An empty string turns that server off.
+	 */
+	serverCommands: Record<string, string>;
 }
 
 export const DEFAULT_SETTINGS: SourceObserverSettings = {
@@ -29,6 +38,8 @@ export const DEFAULT_SETTINGS: SourceObserverSettings = {
 	wordWrap: false,
 	compareWithBase: false,
 	baseBranches: {},
+	languageServers: true,
+	serverCommands: {},
 };
 
 export const FONT_SIZE_RANGE = { min: 10, max: 20 } as const;
@@ -66,7 +77,18 @@ export function sanitizeSettings(raw: unknown): SourceObserverSettings {
 		wordWrap: data.wordWrap === true,
 		compareWithBase: data.compareWithBase === true,
 		baseBranches: sanitizeBaseBranches(data.baseBranches),
+		languageServers: typeof data.languageServers === 'boolean' ? data.languageServers : DEFAULT_SETTINGS.languageServers,
+		serverCommands: sanitizeServerCommands(data.serverCommands),
 	};
+}
+
+function sanitizeServerCommands(raw: unknown): Record<string, string> {
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+	const known = new Set(BUILTIN_SERVERS.map((s) => s.id));
+	const entries = Object.entries(raw as Record<string, unknown>)
+		.filter((e): e is [string, string] => known.has(e[0]) && typeof e[1] === 'string')
+		.map(([id, command]): [string, string] => [id, command.trim()]);
+	return Object.fromEntries(entries);
 }
 
 function sanitizeBaseBranches(raw: unknown): Record<string, string> {

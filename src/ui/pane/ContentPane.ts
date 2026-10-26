@@ -1,4 +1,4 @@
-import { Component, Notice, setIcon } from 'obsidian';
+import { App, Component, Notice, setIcon } from 'obsidian';
 import * as path from 'path';
 import type { BlameCommit } from '../../git/blame';
 import type { GitRepo } from '../../git/GitRepo';
@@ -11,10 +11,15 @@ import { copyToClipboard } from '../../utils/system';
 import { formatDateTime } from '../../utils/time';
 import type { LineRange } from '../../links/sourceLink';
 import type { DiffLayout } from '../../settings';
+import type { FileLocation, Position } from '../../lsp/locations';
+import type { LspManager, LspStatus } from '../../lsp/LspManager';
+import { displayPath } from '../../utils/paths';
+import { CodeIntel, JumpKind } from './codeIntel';
 import { CodeRenderer, DiffRenderer, EditorSelectionInfo, MessageRenderer, PaneRenderer } from './renderers';
 
 export type PaneTarget =
-	| { type: 'file'; absPath: string; label: string; lines: LineRange | null }
+	/** `at` places the cursor, e.g. after a jump to a definition. */
+	| { type: 'file'; absPath: string; label: string; lines: LineRange | null; at?: Position | null }
 	| { type: 'diff'; repo: GitRepo; entry: ChangeEntry; label: string }
 	/** A file's change in one commit; `absPath` is the file in the working tree. */
 	| { type: 'commit'; repo: GitRepo; commit: FileCommit; absPath: string; label: string };
@@ -25,6 +30,8 @@ interface PaneAction {
 	run: (evt: MouseEvent) => void;
 	/** The blame toggle, which shows whether blame is on. */
 	blame?: boolean;
+	/** Back or forward through code navigation history. */
+	nav?: 'back' | 'forward';
 }
 
 export interface ContentPaneOptions {
@@ -42,6 +49,14 @@ export interface ContentPaneOptions {
 	onShowHistory?: () => void;
 	/** Called when a new target starts loading (not for background reloads). */
 	onShow?: (target: PaneTarget) => void;
+	/** Needed for pickers such as find references. */
+	app?: App;
+	/** Starts language servers; code navigation is off without it. */
+	lsp?: LspManager;
+	/** Folder language servers run in: the repository root, or the opened folder. */
+	getRoot?: () => string | null;
+	/** The opened folder, for short file names. */
+	getFolder?: () => string;
 }
 
 const GROUP_LABEL: Record<ChangeGroup, string> = {
@@ -85,6 +100,7 @@ export class ContentPane extends Component {
 	private headerEl: HTMLElement;
 	private labelEl: HTMLElement;
 	private statsEl: HTMLElement;
+	private lspEl: HTMLElement;
 	private actionsEl: HTMLElement;
 	private bodyEl: HTMLElement;
 	private current: PaneRenderer | null = null;
@@ -97,6 +113,7 @@ export class ContentPane extends Component {
 	/** Whether the blame gutter is wanted; it applies to every file shown as code. */
 	private blameOn = false;
 	private blameRequest = new LatestRequest();
+	private intel: CodeIntel;
 
 	private fontSize: number;
 	private wordWrap: boolean;
@@ -110,8 +127,18 @@ export class ContentPane extends Component {
 		this.headerEl = parent.createDiv({ cls: 'so-pane-header' });
 		this.labelEl = this.headerEl.createDiv({ cls: 'so-path-label' });
 		this.statsEl = this.headerEl.createDiv({ cls: 'so-pane-stats' });
+		this.lspEl = this.headerEl.createDiv({ cls: 'so-lsp-status' });
 		this.actionsEl = this.headerEl.createDiv({ cls: 'so-pane-actions' });
 		this.bodyEl = parent.createDiv({ cls: 'so-pane' });
+		this.intel = this.addChild(new CodeIntel(opts.lsp ?? null, {
+			app: opts.app ?? null,
+			current: () => this.shownCode(),
+			open: (loc) => this.openAt(loc),
+			root: () => opts.getRoot?.() ?? null,
+			label: (absPath) => displayPath(absPath, opts.getFolder?.() ?? ''),
+			onStatus: (status) => this.setLspStatus(status),
+			onHistoryChange: () => this.updateNavButtons(),
+		}));
 	}
 
 	onload() {
@@ -126,6 +153,7 @@ export class ContentPane extends Component {
 		this.plan = null;
 		this.signature = '';
 		this.headerEl.removeClass('so-pane-loading');
+		this.intel.detach();
 		this.setHeader('', null, []);
 		this.mount(new MessageRenderer(this.bodyEl, 'code-2', text));
 	}
@@ -182,6 +210,25 @@ export class ContentPane extends Component {
 	selectedText(): string {
 		return this.current?.selectedText() ?? '';
 	}
+
+	/** True when the shown file is connected to a language server. */
+	hasCodeIntel(): boolean { return this.intel.isAvailable(); }
+
+	canGoBack(): boolean { return this.intel.canGoBack() && !!this.shownCode(); }
+
+	canGoForward(): boolean { return this.intel.canGoForward() && !!this.shownCode(); }
+
+	goBack() { void this.intel.goBack(); }
+
+	goForward() { void this.intel.goForward(); }
+
+	goTo(kind: JumpKind) { void this.intel.goTo(kind); }
+
+	findReferences() { void this.intel.findReferences(); }
+
+	goToSymbolInFile() { void this.intel.goToSymbolInFile(); }
+
+	goToSymbolInProject() { void this.intel.goToSymbolInProject(); }
 
 	/** Re-loads whatever is currently shown, e.g. after the file changed on disk. */
 	reload() {
@@ -293,7 +340,10 @@ export class ContentPane extends Component {
 		const find: PaneAction = { icon: 'search', label: 'Find in file', run: () => { this.openSearch(); } };
 
 		if (plan.kind === 'code') {
-			const actions: PaneAction[] = [];
+			const actions: PaneAction[] = [
+				{ icon: 'arrow-left', label: 'Go back', run: () => this.goBack(), nav: 'back' },
+				{ icon: 'arrow-right', label: 'Go forward', run: () => this.goForward(), nav: 'forward' },
+			];
 			const onLinkMenu = this.opts.onLinkMenu;
 			if (onLinkMenu) actions.push({ icon: 'link', label: 'Copy link', run: onLinkMenu });
 			if (plan.repoPath) {
@@ -304,20 +354,24 @@ export class ContentPane extends Component {
 			actions.push(find);
 			this.setHeader(label, null, actions);
 			const lines = target.type === 'file' ? target.lines : null;
+			const at = target.type === 'file' ? target.at ?? null : null;
 			// Reuse the editor between files instead of rebuilding it.
 			if (this.current instanceof CodeRenderer) {
-				this.current.setDocument(plan.text, plan.fileName, keepScroll, lines);
+				this.current.setDocument(plan.text, plan.fileName, keepScroll, lines, at);
 			} else {
 				const code = new CodeRenderer(this.bodyEl, this.fontSize, this.wordWrap);
 				this.mount(code);
-				code.setDocument(plan.text, plan.fileName, false, lines);
+				code.setDocument(plan.text, plan.fileName, false, lines, at);
 			}
 			if (this.current instanceof CodeRenderer) {
 				if (this.blameOn && plan.repoPath) void this.loadBlame(false);
 				else if (this.current.hasBlame()) this.current.setBlame(null);
+				if (target.type === 'file') void this.intel.attach(this.current, target.absPath);
 			}
 			return;
 		}
+
+		this.intel.detach();
 
 		if (plan.kind === 'diff') {
 			const layout = this.diffLayout;
@@ -392,9 +446,51 @@ export class ContentPane extends Component {
 			});
 			setIcon(btn, action.icon);
 			if (action.blame) btn.addClass('so-blame-toggle');
+			if (action.nav) btn.addClass(`so-nav-${action.nav}`);
 			btn.addEventListener('click', (evt) => action.run(evt));
 		}
 		this.updateBlameButton();
+		this.updateNavButtons();
+	}
+
+	private updateNavButtons() {
+		const back = this.actionsEl.querySelector('.so-nav-back');
+		const forward = this.actionsEl.querySelector('.so-nav-forward');
+		back?.toggleAttribute('disabled', !this.canGoBack());
+		forward?.toggleAttribute('disabled', !this.canGoForward());
+	}
+
+	/** Shows which language server serves the file, and whether it is ready. */
+	private setLspStatus(status: LspStatus | null) {
+		this.lspEl.empty();
+		this.lspEl.removeClass('is-starting', 'is-ready', 'is-failed');
+		if (!status) {
+			this.lspEl.removeAttribute('title');
+			return;
+		}
+		this.lspEl.addClass(`is-${status.kind}`);
+		const busy = status.kind === 'ready' && status.busy;
+		this.lspEl.toggleClass('is-busy', !!busy);
+		this.lspEl.setText(status.kind === 'starting' ? `${status.name} starting…` : busy ? `${status.name} · ${busy}` : status.name);
+		this.lspEl.title = status.kind === 'failed'
+			? `${status.name} is not available: ${status.message}`
+			: busy ? `${status.name}: ${busy}` : status.kind === 'ready' ? `${status.name} is running` : `${status.name} is starting`;
+	}
+
+	/** The file shown as code, if any, for code navigation. */
+	private shownCode(): { absPath: string; code: CodeRenderer } | null {
+		const target = this.target;
+		const code = this.current;
+		if (target?.type !== 'file' || !(code instanceof CodeRenderer) || this.plan?.kind !== 'code') return null;
+		return { absPath: target.absPath, code };
+	}
+
+	/** Shows `loc` as code with the cursor there; returns its renderer, or null if it could not be shown. */
+	private async openAt(loc: FileLocation): Promise<CodeRenderer | null> {
+		const label = displayPath(loc.absPath, this.opts.getFolder?.() ?? '');
+		await this.show({ type: 'file', absPath: loc.absPath, label, lines: null, at: loc.position });
+		const shown = this.shownCode();
+		return shown?.absPath === loc.absPath ? shown.code : null;
 	}
 
 	private updateBlameButton() {
