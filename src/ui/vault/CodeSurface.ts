@@ -4,7 +4,7 @@ import { GitRepo } from '../../git/GitRepo';
 import { FileLocation, OutlineNode, outlineTree, Position } from '../../lsp/locations';
 import type { LspManager, LspStatus } from '../../lsp/LspManager';
 import { findRepoRoot } from '../../utils/paths';
-import { CodeIntel, JumpKind } from '../pane/codeIntel';
+import { CodeIntel, CursorRequest, JumpKind } from '../pane/codeIntel';
 import { CodeRenderer } from '../pane/renderers';
 
 export type SurfaceChange = 'content' | 'cursor' | 'dirty';
@@ -168,6 +168,9 @@ export class CodeSurface extends Component implements CodeNavigator {
 	goToSymbolInFile() { void this.intel.goToSymbolInFile(); }
 
 	goToSymbolInProject() { void this.intel.goToSymbolInProject(); }
+
+	/** For asking the language server about the symbol at the cursor, e.g. its call graph. */
+	cursorRequest(): Promise<CursorRequest | null> { return this.intel.cursorRequest(); }
 
 	/** Shows or hides who last changed each line. */
 	toggleBlame() {

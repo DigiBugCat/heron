@@ -28,6 +28,16 @@ export interface CodeIntelHost {
 
 export type JumpKind = 'definition' | 'typeDefinition' | 'implementation' | 'declaration';
 
+/** A language server request about the symbol at the cursor (see `CodeIntel.cursorRequest`). */
+export interface CursorRequest {
+	request(method: string, params: unknown): Promise<unknown>;
+	/** False only when the server said it lacks `capability`, e.g. `callHierarchyProvider`. */
+	supports(capability: string): boolean;
+	textDocument: { uri: string };
+	position: { line: number; character: number };
+	absPath: string;
+}
+
 const JUMP_LABEL: Record<JumpKind, string> = {
 	definition: 'definition',
 	typeDefinition: 'type definition',
@@ -218,6 +228,24 @@ export class CodeIntel extends Component {
 		} catch {
 			return null;
 		}
+	}
+
+	/**
+	 * What another feature needs to ask the language server about the symbol
+	 * at the cursor, after waiting for a server that is still loading. Null,
+	 * with a notice, when there is no server.
+	 */
+	async cursorRequest(): Promise<CursorRequest | null> {
+		const ctx = await this.context();
+		if (!ctx) return null;
+		const client = ctx.client;
+		return {
+			request: (method, params) => client.request(method, params),
+			supports: (capability) => supports(client, capability),
+			textDocument: ctx.textDocument,
+			position: ctx.position,
+			absPath: ctx.from.absPath,
+		};
 	}
 
 	/** Lists the symbols in the shown file. */

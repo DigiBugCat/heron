@@ -2,6 +2,7 @@ import { Events, Notice, Plugin, sanitizeHTMLToDom, TFile, WorkspaceLeaf } from 
 import * as path from 'path';
 import { registerCommands } from './commands';
 import { registerLinks } from './links/register';
+import { registerCodeMaps } from './ui/codemap/register';
 import { LspManager } from './lsp/LspManager';
 import type { SourceLocation } from './links/sourceLink';
 import { sanitizeSettings, SourceObserverSettings } from './settings';
@@ -102,6 +103,7 @@ export default class SourceObserverPlugin extends Plugin {
 
 		registerCommands(this);
 		registerLinks(this);
+		registerCodeMaps(this);
 
 		this.addSettingTab(new SourceObserverSettingTab(this.app, this));
 	}

@@ -18,6 +18,7 @@ Heron is a fork of [Source Observer](https://github.com/IceKhan13/obsidian-sourc
 - Links and live embeds of code in notes
 - Rewind: a local history of every change to code in the vault, with who made it (you, Claude Code, git or something else), diffs and restore
 - GitHub and GitHub Enterprise pull requests: a list in the sidebar, an overview tab with checks, changed files and review threads, and file diffs with the threads in the gutter (read-only)
+- Code maps: canvases of a repository's files and imports, coloured by git status, and call graphs of a function
 
 ## Usage
 
@@ -88,6 +89,18 @@ lines: 40-75
 
 `file` can be relative to `folder` or absolute. `lines` is optional. Links and embeds use absolute paths, so they only work on the computer that made them.
 
+### Code maps
+
+A code map is a canvas of a folder's source files and the imports between them, to see how a codebase fits together and what changed. Run **Generate code map for this repository** (the repository of the active file), **Generate code map for folder…**, or select **Generate code map** on a folder in the file explorer. The map is saved as `Code maps/<folder>.canvas`; choose another folder in **Settings → Heron**.
+
+- Each file is a card with a link to it, its top-level symbols, its line count and how many outside packages it uses. Cards sit in a group per folder, and arrows point from a file to the files it imports.
+- Changed files are orange, new files green and conflicts red, from git status.
+- Imports are read from TypeScript, JavaScript, Python, Go and Rust files, including `tsconfig.json` path aliases, Python packages, Go modules and Rust modules. Language servers are not needed.
+- A folder with more than 150 source files can be mapped as folders instead (arrows count the imports between them), or you can choose a subfolder.
+- Run **Update code map** in an open map after the code changes: cards you moved stay where you put them, new files appear near their folder, deleted ones disappear and colours are refreshed. Cards and arrows you added yourself are kept.
+
+With a language server running, put the cursor on a function and run **Show call graph for symbol at cursor** to draw what it calls and what calls it, two calls deep each way, grouped by file. Saved as `Code maps/Call graph - <name>.canvas`.
+
 ## Installation
 
 Build with `npm run build` and copy `main.js`, `manifest.json` and `styles.css` to `<vault>/.obsidian/plugins/heron/`. For development, `npm run dev:vault` links them into the test vault (see [CONTRIBUTING.md](CONTRIBUTING.md)).
@@ -96,7 +109,7 @@ Requires desktop Obsidian 1.7.2+. Git features need `git` on your `PATH`.
 
 ## Privacy
 
-Heron writes a code file only when you save it in editing mode or restore it with Rewind; it never runs git commands that change a repository. Rewind keeps copies of changed files in your system's app data folder, outside the vault (see **Rewind** above), and reads the Claude Code hook log there if you install the hooks; nothing leaves your computer. Delete that folder to remove the history. Language servers are programs you install; Heron runs them with the project folder as their working directory and talks to them over standard input and output. They read the project, and some keep caches or download dependencies (for example `gopls` may fetch Go modules). Heron turns off rust-analyzer's `cargo check` and build scripts so reading a Rust project does not build it. Turn language servers off in settings if you don't want this.
+Heron writes a code file only when you save it in editing mode or restore it with Rewind, and writes code maps only to the canvases you generate; it never runs git commands that change a repository. Rewind keeps copies of changed files in your system's app data folder, outside the vault (see **Rewind** above), and reads the Claude Code hook log there if you install the hooks; nothing leaves your computer. Delete that folder to remove the history. Language servers are programs you install; Heron runs them with the project folder as their working directory and talks to them over standard input and output. They read the project, and some keep caches or download dependencies (for example `gopls` may fetch Go modules). Heron turns off rust-analyzer's `cargo check` and build scripts so reading a Rust project does not build it. Turn language servers off in settings if you don't want this.
 
 Heron contacts GitHub only for repositories with a GitHub remote, and only while you use the pull request features: the **Pull requests** panel while it is shown, pull request tabs, the pull request commands and **Test connection**. It only reads (GET requests and GraphQL queries) and never changes anything on GitHub. To find a token it may run `gh auth token`. It makes no other network requests and collects no telemetry. It only runs read-only git commands (`status`, `ls-files`, `cat-file`, `grep`, `log` (including `log -g` for the reflog), `blame`, `diff`, `merge-base`, `rev-parse`, `rev-list`, `for-each-ref`, `symbolic-ref`, `worktree list`, `remote get-url`) with `--no-optional-locks`, so it never writes to your repository.
 

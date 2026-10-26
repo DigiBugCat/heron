@@ -41,6 +41,8 @@ export interface SourceObserverSettings {
 	rewindMaxSizeMb: number;
 	/** The Rewind panel was added to the right sidebar once. */
 	rewindPanelAdded: boolean;
+	/** Vault folder that code maps and call graphs are saved in. */
+	codeMapFolder: string;
 }
 
 export const DEFAULT_SETTINGS: SourceObserverSettings = {
@@ -61,6 +63,7 @@ export const DEFAULT_SETTINGS: SourceObserverSettings = {
 	rewindMaxAgeDays: 14,
 	rewindMaxSizeMb: 200,
 	rewindPanelAdded: false,
+	codeMapFolder: 'Code maps',
 };
 
 export const FONT_SIZE_RANGE = { min: 10, max: 20 } as const;
@@ -108,7 +111,15 @@ export function sanitizeSettings(raw: unknown): SourceObserverSettings {
 		rewindMaxAgeDays: clamp(Math.round(num(data.rewindMaxAgeDays, DEFAULT_SETTINGS.rewindMaxAgeDays)), REWIND_AGE_RANGE.min, REWIND_AGE_RANGE.max),
 		rewindMaxSizeMb: clamp(Math.round(num(data.rewindMaxSizeMb, DEFAULT_SETTINGS.rewindMaxSizeMb)), REWIND_SIZE_RANGE.min, REWIND_SIZE_RANGE.max),
 		rewindPanelAdded: data.rewindPanelAdded === true,
+		codeMapFolder: sanitizeVaultFolder(data.codeMapFolder, DEFAULT_SETTINGS.codeMapFolder),
 	};
+}
+
+/** A vault folder path without leading or trailing slashes, or `fallback` when empty or invalid. */
+export function sanitizeVaultFolder(raw: unknown, fallback: string): string {
+	if (typeof raw !== 'string') return fallback;
+	const cleaned = raw.split('/').map((part) => part.trim()).filter((part) => part && part !== '.' && part !== '..').join('/');
+	return cleaned || fallback;
 }
 
 function sanitizeServerCommands(raw: unknown): Record<string, string> {

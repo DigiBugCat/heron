@@ -52,6 +52,17 @@ src/
     workspace.ts              lsp-client Workspace for Heron's single reused editor
     locations.ts              normalizes definition, reference and symbol responses, pure
     LspManager.ts             starts/stops one server per type and root; status and progress
+    callHierarchy.ts          call graph around a symbol from callHierarchy requests
+  codemap/                    code maps, pure (no Obsidian imports)
+    mask.ts                   blanks comments and strings so keyword searches stay in code
+    imports.ts                import parsers for TS/JS, Python, Go and Rust
+    resolve.ts                resolves imports to repository files (tsconfig paths, packages, modules)
+    tsconfig.ts               tsconfig/jsconfig `paths`, `baseUrl` and `extends`; JSON with comments
+    outline.ts                top-level symbols from a quick declaration scan
+    graph.ts                  file graph, and the folder graph for large folders
+    layout.ts                 deterministic layered layout with folder groups
+    canvas.ts                 JSON Canvas output, stable ids, and the merge that keeps moved cards
+    models.ts, callMap.ts     card texts and colours for file, folder and call maps
   github/
     remote.ts                 remote URL → host/owner/name; API bases for github.com and Enterprise, pure
     auth.ts                   token per host: pasted (secret storage or private file), then `gh auth token`
@@ -75,6 +86,7 @@ src/
     rewind/                   Rewind local history: records (log format), HistoryStore (blobs + log,
                               pruning), Recorder (vault events → records), attribution and moments
                               (pure), restore plans, timeline, and the Claude Code hook script and log
+    CodeMapSource.ts          reads a folder for a code map and builds the canvas text
   ui/
     SourceObserverView.ts     layout and wiring
     sidebar/                  Files, Search, Changes and History sections, tree, keyboard navigation
@@ -88,6 +100,7 @@ src/
     github/                   Pull requests panel, pull request and file diff tabs, settings, commands
     fileMenu.ts               right-click menu for files, folders and changes
     worktreeMenu.ts           the worktree switcher menu
+    codemap/                  code map commands, folder picker, and writing canvases to the vault
   utils/                      file reading, icons, paths, request tokens, OS integration
 ```
 

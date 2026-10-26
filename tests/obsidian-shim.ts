@@ -231,12 +231,72 @@ export class MarkdownRenderChild extends Component {
 	constructor(public containerEl: HTMLElement) { super(); }
 }
 
-/** Records opened modals instead of showing them; `Modal.opened` lists them in order. */
+/**
+ * Records opened modals instead of showing them; `Modal.opened` lists them in
+ * order. Tests call `onOpen` themselves when they need the content rendered.
+ */
 export class Modal {
 	static opened: Modal[] = [];
+	titleEl: HTMLElement = document.createElement('div');
+	contentEl: HTMLElement = document.createElement('div');
 	constructor(public app: unknown) {}
 	open() { Modal.opened.push(this); }
 	close() { /* nothing to close */ }
+}
+
+export class ButtonComponent {
+	buttonEl: HTMLButtonElement;
+	constructor(containerEl: HTMLElement) {
+		this.buttonEl = containerEl.ownerDocument.createElement('button');
+		containerEl.appendChild(this.buttonEl);
+	}
+	setButtonText(text: string) { this.buttonEl.textContent = text; return this; }
+	setCta() { this.buttonEl.classList.add('mod-cta'); return this; }
+	onClick(cb: () => unknown) { this.buttonEl.addEventListener('click', () => { cb(); }); return this; }
+}
+
+/** A settings row; only what the plugin's modals use. */
+export class Setting {
+	settingEl: HTMLElement;
+	controlEl: HTMLElement;
+	constructor(containerEl: HTMLElement) {
+		this.settingEl = containerEl.ownerDocument.createElement('div');
+		this.controlEl = containerEl.ownerDocument.createElement('div');
+		this.settingEl.appendChild(this.controlEl);
+		containerEl.appendChild(this.settingEl);
+	}
+	setName(name: string) { this.settingEl.dataset.name = name; return this; }
+	setDesc() { return this; }
+	addButton(cb: (button: ButtonComponent) => unknown) { cb(new ButtonComponent(this.controlEl)); return this; }
+}
+
+export class TAbstractFile {
+	name: string;
+	constructor(public path: string) {
+		this.name = path.slice(path.lastIndexOf('/') + 1);
+	}
+}
+
+export class TFile extends TAbstractFile {
+	get extension(): string {
+		const dot = this.name.lastIndexOf('.');
+		return dot < 0 ? '' : this.name.slice(dot + 1);
+	}
+	get basename(): string {
+		const dot = this.name.lastIndexOf('.');
+		return dot < 0 ? this.name : this.name.slice(0, dot);
+	}
+}
+
+export class TFolder extends TAbstractFile {
+	isRoot() { return this.path === '/'; }
+}
+
+/** A file view with unsaved state; `saves` counts calls to `save`. */
+export class TextFileView extends Component {
+	file: TFile | null = null;
+	saves = 0;
+	save(): Promise<void> { this.saves++; return Promise.resolve(); }
 }
 
 export abstract class SuggestModal<T> extends Modal {
