@@ -14,6 +14,8 @@ import { CHANGES_VIEW_TYPE, ChangesView } from './ui/vault/ChangesView';
 import { DIFF_VIEW_TYPE, DiffState, DiffView } from './ui/vault/DiffView';
 import { OUTLINE_VIEW_TYPE, OutlineView } from './ui/vault/OutlineView';
 import type { ChangeEntry } from './git/status';
+import type { Rewind } from './ui/vault/rewind/Rewind';
+import { registerRewind } from './ui/vault/rewind/register';
 
 /** Root plugin class — registers the view, ribbon icon, commands, links, and settings tab. */
 export default class SourceObserverPlugin extends Plugin {
@@ -26,6 +28,8 @@ export default class SourceObserverPlugin extends Plugin {
 	private statusBarEl!: HTMLElement;
 	/** Git state of the repositories in the vault; null on adapters without a folder. */
 	vaultGit: ExplorerGit | null = null;
+	/** Rewind's local history of changes; null on adapters without a folder. */
+	rewind: Rewind | null = null;
 
 	async onload() {
 		await this.loadSettings();
@@ -82,6 +86,7 @@ export default class SourceObserverPlugin extends Plugin {
 			onRepoChange: (listener) => this.vaultGit?.onChange(listener) ?? (() => undefined),
 		}));
 		this.app.workspace.onLayoutReady(() => { void this.addSidebarPanelsOnce(); });
+		this.rewind = registerRewind(this);
 
 		this.statusBarEl = this.addStatusBarItem();
 		this.statusBarEl.addClass('heron-status');

@@ -66,6 +66,9 @@ src/
     FileIndex.ts              cached file list for search (git ls-files or a bounded walk)
     ContentSearch.ts          search in files: git grep, or reading indexed files; match previews
     Worktrees.ts              worktree summaries (changes, ahead/behind) and folder mapping
+    rewind/                   Rewind local history: records (log format), HistoryStore (blobs + log,
+                              pruning), Recorder (vault events → records), attribution and moments
+                              (pure), restore plans, timeline, and the Claude Code hook script and log
   ui/
     SourceObserverView.ts     layout and wiring
     sidebar/                  Files, Search, Changes and History sections, tree, keyboard navigation
@@ -74,6 +77,8 @@ src/
     locationModals.ts         pickers for references, definitions and symbols
     editor/                   CodeMirror theme, languages, diff stats, blame gutter
     embed/                    live code embeds rendered inside notes
+    vault/                    code tabs, outline, changes and diff panels for code in the vault;
+                              rewind/ holds Rewind's capture wiring, panel, diff and "as of" tabs
     fileMenu.ts               right-click menu for files, folders and changes
     worktreeMenu.ts           the worktree switcher menu
   utils/                      file reading, icons, paths, request tokens, OS integration
@@ -88,6 +93,10 @@ A few principles hold the design together:
 - **Bounded work.** File sizes, search results, history and file indexes are capped, and watchers poll only while the view is visible.
 
 `AGENTS.md` sums up these conventions for coding agents, together with Obsidian API and git pitfalls that are easy to hit — worth a read for human contributors too.
+
+### Rewind
+
+Rewind's history lives outside the vault, in `utils/appData.ts`'s `rewindDir`. `services/rewind/` has no Obsidian imports: the recorder is fed vault events by `ui/vault/rewind/Rewind.ts`, and attribution, grouping and restore planning are pure functions over log records, so evidence that arrives late (a Claude Code hook line) still counts. Tests use temporary folders and repositories (`tests/rewind*.test.ts`). The hook log format is in `docs/claude-hooks.md`.
 
 ### Language servers
 

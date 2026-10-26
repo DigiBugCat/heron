@@ -33,6 +33,14 @@ export interface SourceObserverSettings {
 	sidebarPanelsAdded: boolean;
 	/** How code files open: for reading, or ready to edit. */
 	codeMode: CodeMode;
+	/** Record a local history of changes to files in the vault's repositories. */
+	rewind: boolean;
+	/** Rewind history older than this many days is pruned. */
+	rewindMaxAgeDays: number;
+	/** Rewind history is pruned to fit in this many megabytes. */
+	rewindMaxSizeMb: number;
+	/** The Rewind panel was added to the right sidebar once. */
+	rewindPanelAdded: boolean;
 }
 
 export const DEFAULT_SETTINGS: SourceObserverSettings = {
@@ -49,11 +57,17 @@ export const DEFAULT_SETTINGS: SourceObserverSettings = {
 	serverCommands: {},
 	sidebarPanelsAdded: false,
 	codeMode: 'read',
+	rewind: true,
+	rewindMaxAgeDays: 14,
+	rewindMaxSizeMb: 200,
+	rewindPanelAdded: false,
 };
 
 export const FONT_SIZE_RANGE = { min: 10, max: 20 } as const;
 export const SIDEBAR_WIDTH_RANGE = { min: 160, max: 600 } as const;
 export const MAX_RECENT_FOLDERS = 8;
+export const REWIND_AGE_RANGE = { min: 1, max: 365 } as const;
+export const REWIND_SIZE_RANGE = { min: 10, max: 10000 } as const;
 /** Repositories whose base branch choice is remembered. */
 export const MAX_BASE_BRANCHES = 50;
 
@@ -90,6 +104,10 @@ export function sanitizeSettings(raw: unknown): SourceObserverSettings {
 		serverCommands: sanitizeServerCommands(data.serverCommands),
 		sidebarPanelsAdded: data.sidebarPanelsAdded === true,
 		codeMode: data.codeMode === 'edit' ? 'edit' : 'read',
+		rewind: typeof data.rewind === 'boolean' ? data.rewind : DEFAULT_SETTINGS.rewind,
+		rewindMaxAgeDays: clamp(Math.round(num(data.rewindMaxAgeDays, DEFAULT_SETTINGS.rewindMaxAgeDays)), REWIND_AGE_RANGE.min, REWIND_AGE_RANGE.max),
+		rewindMaxSizeMb: clamp(Math.round(num(data.rewindMaxSizeMb, DEFAULT_SETTINGS.rewindMaxSizeMb)), REWIND_SIZE_RANGE.min, REWIND_SIZE_RANGE.max),
+		rewindPanelAdded: data.rewindPanelAdded === true,
 	};
 }
 

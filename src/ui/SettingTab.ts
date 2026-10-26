@@ -2,6 +2,7 @@ import { App, PluginSettingTab, Setting } from 'obsidian';
 import type SourceObserverPlugin from '../main';
 import { BUILTIN_SERVERS } from '../lsp/servers';
 import { DiffLayout, FONT_SIZE_RANGE } from '../settings';
+import { renderRewindSettings } from './vault/rewind/settingsSection';
 
 /** Obsidian settings tab for Heron. */
 export class SourceObserverSettingTab extends PluginSettingTab {
@@ -127,6 +128,8 @@ export class SourceObserverSettingTab extends PluginSettingTab {
 					);
 			}
 		}
+
+		renderRewindSettings(containerEl, this.plugin);
 
 		new Setting(containerEl).setName('Folders').setHeading();
 
