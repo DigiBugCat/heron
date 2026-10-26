@@ -7,6 +7,7 @@ import { OUTLINE_VIEW_TYPE } from './ui/vault/OutlineView';
 import type { JumpKind } from './ui/pane/codeIntel';
 import { COPY_FORMATS, CopyFormat } from './links/sourceLink';
 import { SourceObserverView } from './ui/SourceObserverView';
+import { registerGitHubCommands } from './ui/github/commands';
 
 const COPY_COMMANDS: Record<CopyFormat, { id: string; name: string }> = {
 	link: { id: 'copy-link', name: 'Copy link to file or selection' },
@@ -159,6 +160,8 @@ export function registerCommands(plugin: SourceObserverPlugin) {
 			new Notice('Language servers will restart when needed');
 		},
 	});
+
+	registerGitHubCommands(plugin, plugin.github);
 
 	for (const { format } of COPY_FORMATS) {
 		plugin.addCommand({

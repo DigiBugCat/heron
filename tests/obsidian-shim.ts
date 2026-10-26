@@ -244,3 +244,22 @@ export abstract class FuzzySuggestModal<T> extends SuggestModal<T> {
 	abstract getItems(): T[];
 	getSuggestions(): T[] { return this.getItems(); }
 }
+
+/** Mod-click opens in a new tab; `metaKey` or `ctrlKey` stands for Mod. */
+export const Keymap = {
+	isModEvent(evt?: UserEventLike | null): boolean {
+		return !!evt && (evt.metaKey === true || evt.ctrlKey === true);
+	},
+};
+
+type UserEventLike = { metaKey?: boolean; ctrlKey?: boolean };
+
+/** Puts the markdown source in the element as plain text; `MarkdownRenderer.rendered` records calls. */
+export class MarkdownRenderer {
+	static rendered: string[] = [];
+	static render(_app: unknown, markdown: string, el: HTMLElement, _sourcePath: string, _component: Component): Promise<void> {
+		MarkdownRenderer.rendered.push(markdown);
+		el.textContent = markdown;
+		return Promise.resolve();
+	}
+}

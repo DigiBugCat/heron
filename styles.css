@@ -806,3 +806,91 @@
 	font-family: var(--font-interface);
 	padding: 6px 8px;
 }
+
+/* ── GitHub pull requests: panel, pull request tab, file diff tab ── */
+.heron-prs-header { display: flex; align-items: center; gap: 6px; padding: 0 6px 6px 10px; }
+.heron-prs-repo { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--font-semibold); color: var(--text-muted); }
+.heron-prs-picker { max-width: 50%; font-size: var(--font-ui-smaller); }
+.heron-prs-group { display: flex; align-items: center; gap: 6px; padding: 6px 8px 2px; font-size: var(--font-ui-smaller); color: var(--text-faint); }
+.heron-prs-message { padding: 6px 10px; }
+.heron-prs-message-text { font-weight: var(--font-semibold); }
+.heron-prs-message-detail { margin: 4px 0 8px; color: var(--text-muted); user-select: text; }
+.heron-pr { display: flex; align-items: flex-start; gap: 6px; padding: 4px 8px 4px 12px; border-radius: var(--radius-s); }
+.heron-pr.is-draft .heron-pr-title { color: var(--text-muted); }
+.heron-pr-main { min-width: 0; flex: 1; }
+.heron-pr-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.heron-pr-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--text-faint); font-size: var(--font-ui-smaller); }
+.heron-pr-draft, .heron-thread-badge, .heron-pr-state {
+	padding: 0 6px;
+	border-radius: 8px;
+	background: var(--background-modifier-hover);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+.heron-pr-check { display: flex; flex-shrink: 0; width: 14px; margin-top: 2px; }
+.heron-pr-check svg { width: 14px; height: 14px; }
+.heron-pr-check.is-success { color: var(--color-green); }
+.heron-pr-check.is-failure { color: var(--color-red); }
+.heron-pr-check.is-pending { color: var(--color-yellow); }
+.heron-pr-check.is-neutral { color: var(--text-faint); }
+.heron-pr-threads { display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; color: var(--text-accent); font-size: var(--font-ui-smaller); }
+.heron-pr-threads svg { width: 12px; height: 12px; }
+
+.heron-pr-overview { max-width: 900px; margin: 0 auto; padding: 16px 20px 40px; user-select: text; }
+.heron-pr-heading { margin: 0 0 6px; }
+.heron-pr-heading-number { color: var(--text-faint); font-weight: normal; }
+.heron-pr-header .heron-pr-meta { font-size: var(--font-ui-small); }
+.heron-pr-state.is-open { background: var(--color-green); color: var(--text-on-accent); }
+.heron-pr-state.is-merged { background: var(--color-purple); color: var(--text-on-accent); }
+.heron-pr-state.is-closed { background: var(--color-red); color: var(--text-on-accent); }
+.heron-pr-branch { font-family: var(--font-monospace); color: var(--text-muted); }
+.heron-pr-link { display: inline-flex; align-items: center; gap: 3px; }
+.heron-pr-link-icon { display: flex; }
+.heron-pr-link-icon svg { width: 12px; height: 12px; }
+.heron-pr-section { margin-top: 20px; }
+.heron-pr-section-title { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; }
+.heron-check { display: flex; align-items: center; gap: 6px; padding: 2px 0; font-size: var(--font-ui-small); }
+.heron-check .heron-pr-check { margin-top: 0; }
+.heron-check-detail { color: var(--text-faint); }
+.heron-pr-file { display: flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: var(--radius-s); font-size: var(--font-ui-small); white-space: nowrap; overflow: hidden; }
+.heron-pr-file.is-added .heron-change-letter { color: var(--color-green); }
+.heron-pr-file.is-removed .heron-change-letter { color: var(--color-red); }
+.heron-pr-file.is-modified .heron-change-letter, .heron-pr-file.is-changed .heron-change-letter { color: var(--color-orange); }
+.heron-pr-file.is-renamed .heron-change-letter, .heron-pr-file.is-copied .heron-change-letter { color: var(--color-blue); }
+.heron-pr-file-stats { margin-left: auto; display: inline-flex; gap: 6px; font-family: var(--font-monospace); font-size: var(--font-ui-smaller); }
+.heron-added { color: var(--color-green); }
+.heron-removed { color: var(--color-red); }
+
+.heron-thread-file { margin-bottom: 12px; }
+.heron-thread-file-name { font-family: var(--font-monospace); font-size: var(--font-ui-small); color: var(--text-muted); padding: 2px 0; }
+.heron-thread { margin: 4px 0; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-s); }
+.heron-thread.is-resolved { opacity: 0.75; }
+.heron-thread.is-flashing { border-color: var(--interactive-accent); }
+.heron-thread-summary { display: flex; align-items: center; gap: 8px; padding: 4px 8px; cursor: var(--cursor); font-size: var(--font-ui-small); }
+.heron-thread-where { color: var(--text-muted); }
+.heron-thread-where.is-clickable:hover { color: var(--text-accent); text-decoration: underline; }
+.heron-thread-author { font-weight: var(--font-semibold); }
+.heron-thread-count { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; color: var(--text-faint); }
+.heron-thread-count svg { width: 12px; height: 12px; }
+.heron-comment { padding: 6px 10px; border-top: 1px solid var(--background-modifier-border); }
+.heron-comment-head { display: flex; gap: 8px; font-size: var(--font-ui-smaller); }
+.heron-comment-author { font-weight: var(--font-semibold); }
+.heron-comment-time { color: var(--text-faint); }
+.heron-comment-body { font-size: var(--font-ui-small); }
+.heron-comment-body > :first-child { margin-top: 2px; }
+.heron-comment-body > :last-child { margin-bottom: 2px; }
+.heron-thread-more { padding: 4px 10px; color: var(--text-faint); font-size: var(--font-ui-smaller); }
+
+.heron-pr-file-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 6px 12px; border-bottom: 1px solid var(--background-modifier-border); font-size: var(--font-ui-small); }
+.heron-pr-file-bar:empty { display: none; }
+.heron-pr-file-path { font-family: var(--font-monospace); }
+.heron-pr-file-bar .heron-pr-file-stats { margin-left: 0; }
+.heron-pr-file-pull { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+.heron-pr-file-diff { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.heron-pr-file-threads { max-height: 40%; overflow: auto; padding: 6px 12px; border-top: 1px solid var(--background-modifier-border); user-select: text; }
+.heron-pr-file-threads-title { font-size: var(--font-ui-smaller); color: var(--text-faint); padding-bottom: 4px; }
+.heron-thread-gutter .cm-gutterElement { display: flex; align-items: center; justify-content: center; }
+.heron-thread-marker { display: inline-flex; align-items: center; gap: 1px; color: var(--text-accent); cursor: var(--cursor); font-size: var(--font-ui-smaller); }
+.heron-thread-marker svg { width: 12px; height: 12px; }
+.heron-thread-marker.is-resolved { color: var(--text-faint); }
+.cm-line.heron-thread-line { box-shadow: inset 2px 0 0 var(--text-accent); }

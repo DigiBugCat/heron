@@ -13,6 +13,7 @@ import { ExplorerGit } from './ui/vault/ExplorerGit';
 import { CHANGES_VIEW_TYPE, ChangesView } from './ui/vault/ChangesView';
 import { DIFF_VIEW_TYPE, DiffState, DiffView } from './ui/vault/DiffView';
 import { OUTLINE_VIEW_TYPE, OutlineView } from './ui/vault/OutlineView';
+import { GitHubFeature } from './ui/github/GitHubFeature';
 import type { ChangeEntry } from './git/status';
 
 /** Root plugin class — registers the view, ribbon icon, commands, links, and settings tab. */
@@ -26,6 +27,8 @@ export default class SourceObserverPlugin extends Plugin {
 	private statusBarEl!: HTMLElement;
 	/** Git state of the repositories in the vault; null on adapters without a folder. */
 	vaultGit: ExplorerGit | null = null;
+	/** Pull requests from GitHub and GitHub Enterprise. */
+	github!: GitHubFeature;
 
 	async onload() {
 		await this.loadSettings();
@@ -81,6 +84,8 @@ export default class SourceObserverPlugin extends Plugin {
 			},
 			onRepoChange: (listener) => this.vaultGit?.onChange(listener) ?? (() => undefined),
 		}));
+		this.github = new GitHubFeature(this);
+		this.github.register();
 		this.app.workspace.onLayoutReady(() => { void this.addSidebarPanelsOnce(); });
 
 		this.statusBarEl = this.addStatusBarItem();
