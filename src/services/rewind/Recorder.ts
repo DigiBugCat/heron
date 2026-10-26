@@ -144,7 +144,8 @@ export class Recorder {
 
 		for (const [to, { oldPath, t }] of renames) {
 			handled.add(to);
-			handled.add(oldPath);
+			// A file created again at the old path is recorded as a change of its own.
+			if ((await this.readDisk(oldPath)).kind === 'missing') handled.add(oldPath);
 			if (skip(to) && skip(oldPath)) continue;
 			if (oldPath === to) {
 				handled.delete(to);

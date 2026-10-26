@@ -35,6 +35,8 @@ export class RewindSnapshotView extends ItemView {
 	private request = new LatestRequest();
 	private bannerEl!: HTMLElement;
 	private bodyEl!: HTMLElement;
+	/** Content hash shown, so history changes only reload when it differs. */
+	private shownHash: string | null = null;
 
 	constructor(leaf: WorkspaceLeaf, private opts: SnapshotOptions) {
 		super(leaf);
@@ -53,7 +55,11 @@ export class RewindSnapshotView extends ItemView {
 		this.contentEl.addClass('heron-code-tab', 'heron-rewind-tab');
 		this.bannerEl = this.contentEl.createDiv({ cls: 'heron-rewind-banner' });
 		this.bodyEl = this.contentEl.createDiv({ cls: 'heron-rewind-body' });
-		this.register(this.opts.onChange(() => this.renderBanner()));
+		this.register(this.opts.onChange(() => {
+			// History loading late (after a restart) or pruning can change what this shows.
+			if (this.hashShown() === this.shownHash) this.renderBanner();
+			else void this.reload();
+		}));
 	}
 
 	getState(): Record<string, unknown> {
@@ -105,15 +111,22 @@ export class RewindSnapshotView extends ItemView {
 		button('file-text', 'Open current file', true, () => this.opts.openFile(state.path));
 	}
 
+	/** Content hash of the file after the shown moment, or null. */
+	private hashShown(): string | null {
+		const state = this.state;
+		const { moments, index } = this.timeline();
+		const moment = moments[index];
+		const file = moment && state ? fileInMoment(moment, state.path) : undefined;
+		return file && file.path === state?.path ? file.after : null;
+	}
+
 	private async reload() {
 		const state = this.state;
 		if (!state) return;
 		const token = this.request.next();
 		this.renderBanner();
-		const { moments, index } = this.timeline();
-		const moment = moments[index];
-		const file = moment ? fileInMoment(moment, state.path) : undefined;
-		const hash = file?.path === state.path ? file.after : null;
+		const hash = this.hashShown();
+		this.shownHash = hash;
 		const text = hash ? await this.opts.readText(hash) : null;
 		if (!this.request.isCurrent(token)) return;
 		if (text === null) {

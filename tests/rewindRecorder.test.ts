@@ -145,6 +145,18 @@ describe('recording changes', () => {
 		expect(s.changes().map((r) => [r.before, r.after])).toEqual([[hashText('uncommitted\n'), hashText('edited\n')]]);
 	});
 
+	it('keeps a file created at a renamed file’s old path', async () => {
+		const s = await setup({ 'a.ts': 'old\n' });
+		renameSync(path.join(s.vault, P('a.ts')), path.join(s.vault, P('b.ts')));
+		s.recorder.notify('rename', P('b.ts'), P('a.ts'));
+		s.put('a.ts', 'replacement\n');
+		s.recorder.notify('create', P('a.ts'));
+		await s.recorder.flush();
+		expect(s.changes().map((r) => [r.kind, r.path])).toEqual([['rename', P('b.ts')], ['modify', P('a.ts')]]);
+		expect(s.store.lastKnown(P('a.ts'))).toBe(hashText('replacement\n'));
+		expect(s.store.lastKnown(P('b.ts'))).toBe(hashText('old\n'));
+	});
+
 	it('treats a new untracked file as created', async () => {
 		const s = await setup({ 'a.ts': 'a' });
 		s.put('fresh.ts', 'hello');

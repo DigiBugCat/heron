@@ -107,6 +107,7 @@ export class Rewind extends Component {
 		else await store.setState(HOOK_OFFSET_KEY, this.hookOffset = await hookLogEnd(this.hookFile));
 		await this.prune();
 		this.reposChanged();
+		this.invalidate();
 	}
 
 	/** Calls `listener` when the history changes; returns an unsubscribe function. */
@@ -123,8 +124,10 @@ export class Rewind extends Component {
 	}
 
 	/** Stored content for `hash`, or null. */
-	readText(hash: string): Promise<string | null> {
-		return this.store?.readText(hash) ?? Promise.resolve(null);
+	async readText(hash: string): Promise<string | null> {
+		// Tabs restored with the workspace may ask before recording has started.
+		if (!this.store) await this.start();
+		return this.store?.readText(hash) ?? null;
 	}
 
 	/** Vault path of the tracked repository containing `vaultPath`, or null. */
