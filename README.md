@@ -19,6 +19,8 @@ Heron is a fork of [Source Observer](https://github.com/IceKhan13/obsidian-sourc
 - Rewind: a local history of every change to code in the vault, with who made it (you, Claude Code, git or something else), diffs and restore
 - GitHub and GitHub Enterprise pull requests: a list in the sidebar, an overview tab with checks, changed files and review threads, and file diffs with the threads in the gutter (read-only)
 - Code maps: canvases of a repository's files and imports, coloured by git status, and call graphs of a function
+- Margin notes: highlight code and comment on it; notes are ordinary Markdown in the vault and survive edits
+- Optional model actions: explain a selection, find similar code, and draw diagrams (off until you turn them on)
 
 ## Usage
 
@@ -46,6 +48,21 @@ Each change is labelled with its source:
 **What is stored and where.** Rewind stores a compressed copy of each version of a changed file (identical content is stored once) and a log of changes, in your system's app data folder, not in the vault, so it never syncs: `~/Library/Application Support/Heron/rewind/` on macOS, `%APPDATA%\Heron\rewind\` on Windows, `~/.local/share/Heron/rewind/` on Linux, one folder per vault. Files in `node_modules`, git-ignored files, binary files and files over 2 MB are skipped. The first time Rewind sees a file it records its current content (or the git index's copy), so the first change can be diffed. History older than 14 days is removed, and the oldest history goes first when it grows past 200 MB; change both, or turn Rewind off, in **Settings → Heron → Rewind**.
 
 **Claude Code hooks.** Run **Set up Claude Code hooks for Rewind**. It saves a small Node.js script to Heron's app data folder and shows the hook settings to add to `~/.claude/settings.json` (or a project's `.claude/settings.json`); **Copy settings** copies them. The `UserPromptSubmit` hook records each prompt and the `PostToolUse` hook records which files Claude's edit tools wrote, as JSON lines in `claude-events.jsonl` next to the script. The script prints nothing and always succeeds, so it never changes what Claude does. The log format is described in [docs/claude-hooks.md](docs/claude-hooks.md). Changes Claude makes through shell commands show as **Outside Heron**.
+### Margin notes
+
+Select code in a code tab and choose **Comment** (the speech bubble in the tab's header, the right-click menu, or **Heron: Comment on selection**). Pick a highlight colour and, optionally, write a note and add tags; a note without text is a plain highlight. The code shows the highlight with a badge in the gutter, and hovering it shows the note. The **Code notes** panel in the right sidebar lists the active file's notes in file order; select one to jump to its code, or **Open in note** to see it in its Markdown file.
+
+Notes are saved as Markdown, one note per code file, in `Code notes/<repository>/<path>.md` (change the folder in **Settings → Heron → Code notes**). Each margin note is a `## Note <id>` section with its colour, author, tags, the quoted code and your text, so you can read, link, search and edit them like any other note. Heron finds a note's code by the quoted text and the text around it, not by line numbers, so notes follow the code when it is edited, reformatted, moved or rewritten by an agent. If the quoted code is gone, the note is listed as **Orphaned** at the end of the panel; it is never deleted.
+
+### Model actions
+
+Turn on **Settings → Heron → Model → Use a model** to add these actions to the sparkles button in a code tab's header, the right-click menu and the command palette:
+
+- **Explain selection** asks the model to explain the selected code, using what the language server knows (enclosing symbols, hover text, definitions and callers), and saves the answer as a margin note by the model, tagged `#explain`.
+- **Find similar code** collects candidates from references, workspace symbols and `git grep`, and lists the ones the model judges to be the same pattern, with its reason for each.
+- **Diagram this file** and **Diagram this symbol** draw a Mermaid diagram from the outline, calls, references and imports, and save it as a note next to the code notes, with links back to the code.
+
+The default model is `claude-haiku-5-5`. Heron reaches it through **Claude Code** (it runs `claude -p` with your Claude Code login, so no key is needed) or the **Anthropic API** with an API key, which is kept in Obsidian's secret storage rather than in the vault. Each action shows its progress in a notice with a **Cancel** button.
 
 ### Language servers
 
@@ -105,13 +122,15 @@ With a language server running, put the cursor on a function and run **Show call
 
 Build with `npm run build` and copy `main.js`, `manifest.json` and `styles.css` to `<vault>/.obsidian/plugins/heron/`. For development, `npm run dev:vault` links them into the test vault (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
-Requires desktop Obsidian 1.7.2+. Git features need `git` on your `PATH`.
+Requires desktop Obsidian 1.11.4+. Git features need `git` on your `PATH`.
 
 ## Privacy
 
 Heron writes a code file only when you save it in editing mode or restore it with Rewind, and writes code maps only to the canvases you generate; it never runs git commands that change a repository. Rewind keeps copies of changed files in your system's app data folder, outside the vault (see **Rewind** above), and reads the Claude Code hook log there if you install the hooks; nothing leaves your computer. Delete that folder to remove the history. Language servers are programs you install; Heron runs them with the project folder as their working directory and talks to them over standard input and output. They read the project, and some keep caches or download dependencies (for example `gopls` may fetch Go modules). Heron turns off rust-analyzer's `cargo check` and build scripts so reading a Rust project does not build it. Turn language servers off in settings if you don't want this.
 
-Heron contacts GitHub only for repositories with a GitHub remote, and only while you use the pull request features: the **Pull requests** panel while it is shown, pull request tabs, the pull request commands and **Test connection**. It only reads (GET requests and GraphQL queries) and never changes anything on GitHub. To find a token it may run `gh auth token`. It makes no other network requests and collects no telemetry. It only runs read-only git commands (`status`, `ls-files`, `cat-file`, `grep`, `log` (including `log -g` for the reflog), `blame`, `diff`, `merge-base`, `rev-parse`, `rev-list`, `for-each-ref`, `symbolic-ref`, `worktree list`, `remote get-url`) with `--no-optional-locks`, so it never writes to your repository.
+Model actions are off by default. When you turn them on and run one, the code involved (the selection or file, and context from the language server and `git grep`) is sent to Anthropic, through the Claude Code CLI or the Anthropic API. Nothing is sent in the background. Margin notes and diagrams are written to the notes folder in your vault.
+
+Heron contacts GitHub only for repositories with a GitHub remote, and only while you use the pull request features: the **Pull requests** panel while it is shown, pull request tabs, the pull request commands and **Test connection**. It only reads (GET requests and GraphQL queries) and never changes anything on GitHub. To find a token it may run `gh auth token`. It only runs read-only git commands (`status`, `ls-files`, `cat-file`, `grep`, `log` (including `log -g` for the reflog), `blame`, `diff`, `merge-base`, `rev-parse`, `rev-list`, `for-each-ref`, `symbolic-ref`, `worktree list`, `remote get-url`) with `--no-optional-locks`, so it never writes to your repository. Apart from GitHub and the model actions, Heron makes no network requests and collects no telemetry.
 
 ## Development
 

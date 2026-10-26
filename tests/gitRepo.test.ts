@@ -52,6 +52,15 @@ describe('GitRepo.open', () => {
 	});
 });
 
+describe('GitRepo.head', () => {
+	it('gives the commit HEAD points at, or null before the first commit', async () => {
+		const root = repoWith({ 'a.txt': 'a' });
+		expect(await (await open(root)).head()).toBe(git(root, 'rev-parse', 'HEAD').trim());
+		const empty = repoWith({});
+		expect(await (await open(empty)).head()).toBeNull();
+	});
+});
+
 describe('status in a subfolder (regression: paths were joined twice)', () => {
 	it('lists only changes inside the opened folder and maps them to real files', async () => {
 		const root = repoWith({ 'src/a.ts': 'a\n', 'root.txt': 'r\n' });

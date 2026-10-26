@@ -1,4 +1,8 @@
 import { BUILTIN_SERVERS } from './lsp/servers';
+import {
+	CodeNotesSettings, DEFAULT_CODE_NOTES_SETTINGS, DEFAULT_MODEL_SETTINGS, ModelSettings,
+	sanitizeCodeNotesSettings, sanitizeModelSettings,
+} from './notes/settings';
 
 /** Whether code tabs open read-only or editable. */
 export type CodeMode = 'read' | 'edit';
@@ -43,6 +47,10 @@ export interface SourceObserverSettings {
 	rewindPanelAdded: boolean;
 	/** Vault folder that code maps and call graphs are saved in. */
 	codeMapFolder: string;
+	/** Margin notes on code. */
+	codeNotes: CodeNotesSettings;
+	/** The opt-in model actions (explain, find similar, diagram). */
+	model: ModelSettings;
 }
 
 export const DEFAULT_SETTINGS: SourceObserverSettings = {
@@ -64,6 +72,8 @@ export const DEFAULT_SETTINGS: SourceObserverSettings = {
 	rewindMaxSizeMb: 200,
 	rewindPanelAdded: false,
 	codeMapFolder: 'Code maps',
+	codeNotes: DEFAULT_CODE_NOTES_SETTINGS,
+	model: DEFAULT_MODEL_SETTINGS,
 };
 
 export const FONT_SIZE_RANGE = { min: 10, max: 20 } as const;
@@ -112,6 +122,8 @@ export function sanitizeSettings(raw: unknown): SourceObserverSettings {
 		rewindMaxSizeMb: clamp(Math.round(num(data.rewindMaxSizeMb, DEFAULT_SETTINGS.rewindMaxSizeMb)), REWIND_SIZE_RANGE.min, REWIND_SIZE_RANGE.max),
 		rewindPanelAdded: data.rewindPanelAdded === true,
 		codeMapFolder: sanitizeVaultFolder(data.codeMapFolder, DEFAULT_SETTINGS.codeMapFolder),
+		codeNotes: sanitizeCodeNotesSettings(data.codeNotes),
+		model: sanitizeModelSettings(data.model),
 	};
 }
 

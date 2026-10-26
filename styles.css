@@ -951,3 +951,85 @@
 .heron-thread-marker svg { width: 12px; height: 12px; }
 .heron-thread-marker.is-resolved { color: var(--text-faint); }
 .cm-line.heron-thread-line { box-shadow: inset 2px 0 0 var(--text-accent); }
+/* ── Margin notes: highlights, gutter badges, cards, panel ───── */
+.heron-note-yellow { --heron-note-rgb: var(--color-yellow-rgb); --heron-note: var(--color-yellow); }
+.heron-note-green { --heron-note-rgb: var(--color-green-rgb); --heron-note: var(--color-green); }
+.heron-note-blue { --heron-note-rgb: var(--color-blue-rgb); --heron-note: var(--color-blue); }
+.heron-note-purple { --heron-note-rgb: var(--color-purple-rgb); --heron-note: var(--color-purple); }
+.heron-note-red { --heron-note-rgb: var(--color-red-rgb); --heron-note: var(--color-red); }
+
+.heron-note-mark {
+	background: rgba(var(--heron-note-rgb), 0.22);
+	border-bottom: 1px solid rgba(var(--heron-note-rgb), 0.7);
+	cursor: pointer;
+}
+.heron-note-gutter .cm-gutterElement { display: flex; align-items: center; justify-content: center; padding: 0 3px; }
+.heron-note-badge {
+	min-width: 8px;
+	height: 8px;
+	border-radius: 4px;
+	background: var(--heron-note);
+	color: var(--text-on-accent);
+	font-size: 8px;
+	line-height: 8px;
+	text-align: center;
+	cursor: pointer;
+}
+.heron-note-spacer { visibility: hidden; }
+
+.heron-note-tooltip { display: flex; flex-direction: column; gap: 6px; max-width: min(480px, 80vw); padding: 2px; }
+.heron-note-tooltip .heron-note-card { cursor: default; }
+
+.heron-note-card {
+	padding: 6px 8px;
+	border-left: 3px solid var(--heron-note);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	font-size: var(--font-ui-small);
+}
+.heron-notes .heron-note-card { margin: 0 6px 6px; }
+.heron-note-card.is-clickable { cursor: pointer; }
+.heron-note-card.is-selected { background: var(--background-modifier-hover); box-shadow: 0 0 0 1px var(--background-modifier-border-focus); }
+.heron-note-card.is-orphaned { opacity: 0.75; }
+.heron-note-card-header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.heron-note-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--heron-note); }
+.heron-note-author { font-weight: var(--font-semibold); color: var(--text-normal); }
+.heron-note-tag { color: var(--tag-color); }
+.heron-note-place { margin-left: auto; color: var(--text-faint); }
+.heron-note-quote {
+	margin: 4px 0;
+	padding: 2px 6px;
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	white-space: pre;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.heron-note-body { user-select: text; }
+.heron-note-body > :first-child { margin-top: 0; }
+.heron-note-body > :last-child { margin-bottom: 0; }
+.heron-note-card-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 2px; }
+.heron-note-open { font-size: var(--font-ui-smaller); }
+.heron-note-more { padding: 2px; }
+.heron-notes-orphaned-title { padding: 8px 10px 4px; color: var(--text-faint); font-size: var(--font-ui-smaller); }
+
+.heron-comment-modal .heron-note-quote { max-height: 6em; }
+.heron-colour-picker { display: flex; gap: 8px; margin: 8px 0; }
+.heron-colour-swatch {
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border-radius: 50%;
+	background: var(--heron-note);
+	border: 2px solid transparent;
+	box-shadow: none;
+}
+.heron-colour-swatch.is-active { border-color: var(--text-normal); }
+.heron-comment-body { width: 100%; resize: vertical; font-family: var(--font-text); }
+
+/* ── Model actions ────────────────────────────────────────────── */
+.heron-model-cancel { margin-left: 8px; }
+.heron-similar-modal .so-location-detail { white-space: normal; }

@@ -40,6 +40,22 @@ describe('readViewableFile', () => {
 });
 
 describe('sanitizeSettings', () => {
+	it('keeps model actions off and the API key out of the settings by default', () => {
+		const s = sanitizeSettings({});
+		expect(s.model).toEqual({ enabled: false, transport: 'cli', model: 'claude-haiku-5-5', cliCommand: 'claude', apiKeySecret: '' });
+		expect(s.codeNotes).toEqual({ folder: 'Code notes', panelAdded: false });
+	});
+
+	it('cleans model and notes settings', () => {
+		const s = sanitizeSettings({
+			model: { enabled: true, transport: 'api', model: '  ', cliCommand: 'npx claude', apiKeySecret: 'Not A Secret Name' },
+			codeNotes: { folder: '/Reviews/code/', panelAdded: true },
+		});
+		expect(s.model).toEqual({ enabled: true, transport: 'api', model: 'claude-haiku-5-5', cliCommand: 'npx claude', apiKeySecret: '' });
+		expect(s.codeNotes).toEqual({ folder: 'Reviews/code', panelAdded: true });
+		expect(sanitizeSettings({ model: { transport: 'smoke', apiKeySecret: 'anthropic-key' } }).model).toMatchObject({ transport: 'cli', apiKeySecret: 'anthropic-key' });
+	});
+
 	it('fills defaults and clamps out-of-range values', () => {
 		const s = sanitizeSettings({ fontSize: 99, sidebarWidth: 5, showHidden: 'yes', recentFolders: [1, '/a', '/a', ''] });
 		expect(s.fontSize).toBe(20);

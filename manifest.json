@@ -2,7 +2,7 @@
 	"id": "heron",
 	"name": "Heron",
 	"version": "0.1.0",
-	"minAppVersion": "1.7.2",
+	"minAppVersion": "1.11.4",
 	"description": "Read and navigate any local codebase with language-server navigation, git history and diffs, without leaving your vault.",
 	"author": "Andrew Sulistio",
 	"isDesktopOnly": true

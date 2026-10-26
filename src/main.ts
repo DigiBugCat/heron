@@ -15,6 +15,7 @@ import { CHANGES_VIEW_TYPE, ChangesView } from './ui/vault/ChangesView';
 import { DIFF_VIEW_TYPE, DiffState, DiffView } from './ui/vault/DiffView';
 import { OUTLINE_VIEW_TYPE, OutlineView } from './ui/vault/OutlineView';
 import { GitHubFeature } from './ui/github/GitHubFeature';
+import { CodeNotesFeature } from './ui/notes/CodeNotesFeature';
 import type { ChangeEntry } from './git/status';
 import type { Rewind } from './ui/vault/rewind/Rewind';
 import { registerRewind } from './ui/vault/rewind/register';
@@ -34,6 +35,8 @@ export default class SourceObserverPlugin extends Plugin {
 	rewind: Rewind | null = null;
 	/** Pull requests from GitHub and GitHub Enterprise. */
 	github!: GitHubFeature;
+	/** Margin notes and model actions in code tabs. */
+	codeNotes!: CodeNotesFeature;
 
 	async onload() {
 		await this.loadSettings();
@@ -93,6 +96,7 @@ export default class SourceObserverPlugin extends Plugin {
 		this.github.register();
 		this.app.workspace.onLayoutReady(() => { void this.addSidebarPanelsOnce(); });
 		this.rewind = registerRewind(this);
+		this.codeNotes = this.addChild(new CodeNotesFeature(this));
 
 		this.statusBarEl = this.addStatusBarItem();
 		this.statusBarEl.addClass('heron-status');

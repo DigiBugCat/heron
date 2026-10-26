@@ -4,6 +4,7 @@ import { BUILTIN_SERVERS } from '../lsp/servers';
 import { DEFAULT_SETTINGS, DiffLayout, FONT_SIZE_RANGE, sanitizeVaultFolder } from '../settings';
 import { renderRewindSettings } from './vault/rewind/settingsSection';
 import { renderGitHubSettings } from './github/settings';
+import { displayCodeNoteSettings } from './notes/settingsSection';
 
 /** Obsidian settings tab for Heron. */
 export class SourceObserverSettingTab extends PluginSettingTab {
@@ -145,6 +146,7 @@ export class SourceObserverSettingTab extends PluginSettingTab {
 
 		renderRewindSettings(containerEl, this.plugin);
 		renderGitHubSettings(containerEl, this.plugin.github);
+		displayCodeNoteSettings(this.app, containerEl, this.plugin, () => this.display());
 
 		new Setting(containerEl).setName('Folders').setHeading();
 

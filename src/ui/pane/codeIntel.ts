@@ -5,6 +5,7 @@ import type { Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { FileLocation, flattenDocumentSymbols, pathOfUri, toFileLocations, workspaceSymbols } from '../../lsp/locations';
 import type { LspManager, LspSession, LspStatus } from '../../lsp/LspManager';
+import type { ServerAccess } from '../../lsp/requests';
 import { readViewableFile } from '../../utils/content';
 import { LatestRequest } from '../../utils/latest';
 import { LocationItem, LocationModal, WorkspaceSymbolModal } from '../locationModals';
@@ -245,6 +246,26 @@ export class CodeIntel extends Component {
 			textDocument: ctx.textDocument,
 			position: ctx.position,
 			absPath: ctx.from.absPath,
+		};
+	}
+
+	/**
+	 * The shown file's language server, synced with the editor, for features
+	 * that make their own requests; null without one. Quiet, like `documentSymbols`.
+	 */
+	async server(): Promise<ServerAccess | null> {
+		const attached = this.attached;
+		if (!attached || !this.manager || !this.isAvailable()) return null;
+		await this.manager.whenIdle(attached.session, MAX_IDLE_WAIT_MS);
+		const view = attached.code.editor();
+		const plugin = view && LSPPlugin.get(view);
+		if (this.attached !== attached || !plugin) return null;
+		plugin.client.sync();
+		const client = plugin.client;
+		return {
+			uri: plugin.uri,
+			supports: (capability) => supports(client, capability),
+			request: (method, params) => client.request(method, params),
 		};
 	}
 

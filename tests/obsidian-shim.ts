@@ -183,9 +183,102 @@ export const Keymap = {
 	},
 };
 
+/** Records messages; a DocumentFragment message is recorded by its text. `Notice.shown` lists the live ones. */
 export class Notice {
 	static messages: string[] = [];
-	constructor(message: string) { Notice.messages.push(message); }
+	static shown: Notice[] = [];
+	noticeEl: HTMLElement;
+	constructor(message: string | DocumentFragment, public duration?: number) {
+		this.noticeEl = document.createElement('div');
+		if (typeof message === 'string') this.noticeEl.textContent = message;
+		else this.noticeEl.append(message);
+		Notice.messages.push(this.noticeEl.textContent ?? '');
+		Notice.shown.push(this);
+	}
+	setMessage(message: string) { this.noticeEl.textContent = message; return this; }
+	hide() { Notice.shown = Notice.shown.filter((n) => n !== this); }
+}
+
+export class TAbstractFile {
+	constructor(public path = '') {}
+	get name(): string { return this.path.slice(this.path.lastIndexOf('/') + 1); }
+}
+
+export class TFile extends TAbstractFile {
+	get extension(): string {
+		const dot = this.name.lastIndexOf('.');
+		return dot < 0 ? '' : this.name.slice(dot + 1);
+	}
+	get basename(): string {
+		const dot = this.name.lastIndexOf('.');
+		return dot < 0 ? this.name : this.name.slice(0, dot);
+	}
+}
+
+export class TFolder extends TAbstractFile {
+	isRoot() { return this.path === '/'; }
+}
+
+export function normalizePath(p: string): string {
+	return p.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
+}
+
+/** Tests never reach the network. */
+export function requestUrl(): Promise<never> {
+	return Promise.reject(new Error('requestUrl is not available in tests'));
+}
+
+// Obsidian's globals for the focused window's document.
+(window as unknown as Record<string, unknown>).activeDocument ??= document;
+
+class ShimComponent<T extends HTMLElement> {
+	constructor(readonly el: T) {}
+}
+
+export class TextComponent extends ShimComponent<HTMLInputElement> {
+	inputEl = this.el;
+	private listener: ((value: string) => unknown) | null = null;
+	constructor(parent: HTMLElement) {
+		super(parent.createEl('input'));
+		this.inputEl.addEventListener('input', () => this.listener?.(this.inputEl.value));
+	}
+	setPlaceholder(text: string) { this.inputEl.placeholder = text; return this; }
+	setValue(value: string) { this.inputEl.value = value; return this; }
+	getValue() { return this.inputEl.value; }
+	setDisabled(disabled: boolean) { this.inputEl.disabled = disabled; return this; }
+	onChange(cb: (value: string) => unknown) { this.listener = cb; return this; }
+}
+
+export class ButtonComponent extends ShimComponent<HTMLButtonElement> {
+	buttonEl = this.el;
+	constructor(parent: HTMLElement) { super(parent.createEl('button')); }
+	setButtonText(text: string) { this.buttonEl.textContent = text; return this; }
+	setCta() { this.buttonEl.addClass('mod-cta'); return this; }
+	setWarning() { this.buttonEl.addClass('mod-warning'); return this; }
+	onClick(cb: (evt: MouseEvent) => unknown) { this.buttonEl.addEventListener('click', (evt) => cb(evt)); return this; }
+}
+
+/** A settings row with the components tests use. */
+export class Setting {
+	settingEl: HTMLElement;
+	nameEl: HTMLElement;
+	descEl: HTMLElement;
+	controlEl: HTMLElement;
+	constructor(containerEl: HTMLElement) {
+		this.settingEl = containerEl.createDiv({ cls: 'setting-item' });
+		this.nameEl = this.settingEl.createDiv({ cls: 'setting-item-name' });
+		this.descEl = this.settingEl.createDiv({ cls: 'setting-item-description' });
+		this.controlEl = this.settingEl.createDiv({ cls: 'setting-item-control' });
+	}
+	setName(name: string) {
+		this.nameEl.textContent = name;
+		this.settingEl.dataset.name = name;
+		return this;
+	}
+	setDesc(desc: string) { this.descEl.textContent = desc; return this; }
+	setHeading() { this.settingEl.addClass('setting-item-heading'); return this; }
+	addText(cb: (text: TextComponent) => unknown) { cb(new TextComponent(this.controlEl)); return this; }
+	addButton(cb: (button: ButtonComponent) => unknown) { cb(new ButtonComponent(this.controlEl)); return this; }
 }
 
 export class MenuItem {
@@ -232,64 +325,18 @@ export class MarkdownRenderChild extends Component {
 }
 
 /**
- * Records opened modals instead of showing them; `Modal.opened` lists them in
- * order. Tests call `onOpen` themselves when they need the content rendered.
+ * Records opened modals instead of showing them; `Modal.opened` lists them
+ * in order, and closed ones in `Modal.closed`. Tests call `onOpen()` themselves to render one.
  */
 export class Modal {
 	static opened: Modal[] = [];
-	titleEl: HTMLElement = document.createElement('div');
-	contentEl: HTMLElement = document.createElement('div');
+	static closed: Modal[] = [];
+	modalEl: HTMLElement = document.createElement('div');
+	titleEl: HTMLElement = this.modalEl.createDiv({ cls: 'modal-title' });
+	contentEl: HTMLElement = this.modalEl.createDiv({ cls: 'modal-content' });
 	constructor(public app: unknown) {}
 	open() { Modal.opened.push(this); }
-	close() { /* nothing to close */ }
-}
-
-export class ButtonComponent {
-	buttonEl: HTMLButtonElement;
-	constructor(containerEl: HTMLElement) {
-		this.buttonEl = containerEl.ownerDocument.createElement('button');
-		containerEl.appendChild(this.buttonEl);
-	}
-	setButtonText(text: string) { this.buttonEl.textContent = text; return this; }
-	setCta() { this.buttonEl.classList.add('mod-cta'); return this; }
-	onClick(cb: () => unknown) { this.buttonEl.addEventListener('click', () => { cb(); }); return this; }
-}
-
-/** A settings row; only what the plugin's modals use. */
-export class Setting {
-	settingEl: HTMLElement;
-	controlEl: HTMLElement;
-	constructor(containerEl: HTMLElement) {
-		this.settingEl = containerEl.ownerDocument.createElement('div');
-		this.controlEl = containerEl.ownerDocument.createElement('div');
-		this.settingEl.appendChild(this.controlEl);
-		containerEl.appendChild(this.settingEl);
-	}
-	setName(name: string) { this.settingEl.dataset.name = name; return this; }
-	setDesc() { return this; }
-	addButton(cb: (button: ButtonComponent) => unknown) { cb(new ButtonComponent(this.controlEl)); return this; }
-}
-
-export class TAbstractFile {
-	name: string;
-	constructor(public path: string) {
-		this.name = path.slice(path.lastIndexOf('/') + 1);
-	}
-}
-
-export class TFile extends TAbstractFile {
-	get extension(): string {
-		const dot = this.name.lastIndexOf('.');
-		return dot < 0 ? '' : this.name.slice(dot + 1);
-	}
-	get basename(): string {
-		const dot = this.name.lastIndexOf('.');
-		return dot < 0 ? this.name : this.name.slice(0, dot);
-	}
-}
-
-export class TFolder extends TAbstractFile {
-	isRoot() { return this.path === '/'; }
+	close() { Modal.closed.push(this); }
 }
 
 /** A file view with unsaved state; `saves` counts calls to `save`. */
@@ -316,9 +363,9 @@ export abstract class FuzzySuggestModal<T> extends SuggestModal<T> {
 /** Puts the markdown source in the element as plain text; `MarkdownRenderer.rendered` records calls. */
 export class MarkdownRenderer {
 	static rendered: string[] = [];
-	static render(_app: unknown, markdown: string, el: HTMLElement, _sourcePath: string, _component: Component): Promise<void> {
+	static render(_app: unknown, markdown: string, el: HTMLElement, _sourcePath?: string, _component?: Component): Promise<void> {
 		MarkdownRenderer.rendered.push(markdown);
-		el.textContent = markdown;
+		el.createDiv({ cls: 'markdown-shim', text: markdown });
 		return Promise.resolve();
 	}
 }

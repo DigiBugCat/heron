@@ -47,7 +47,7 @@ export function vaultBasePath(plugin: SourceObserverPlugin): string {
  * Shows `loc` in `leaf`: a vault file through Obsidian (so it joins the
  * tab's history), anything else in an external code tab.
  */
-async function openLocation(plugin: SourceObserverPlugin, leaf: WorkspaceLeaf, loc: FileLocation): Promise<CodeSurface | null> {
+export async function openLocation(plugin: SourceObserverPlugin, leaf: WorkspaceLeaf, loc: FileLocation): Promise<CodeSurface | null> {
 	const base = vaultBasePath(plugin);
 	const rel = base ? path.relative(base, loc.absPath) : '';
 	const vaultFile = rel && !rel.startsWith('..') && !path.isAbsolute(rel)

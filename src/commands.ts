@@ -8,6 +8,7 @@ import type { JumpKind } from './ui/pane/codeIntel';
 import { COPY_FORMATS, CopyFormat } from './links/sourceLink';
 import { SourceObserverView } from './ui/SourceObserverView';
 import { registerGitHubCommands } from './ui/github/commands';
+import { registerCodeNoteCommands } from './ui/notes/noteCommands';
 
 const COPY_COMMANDS: Record<CopyFormat, { id: string; name: string }> = {
 	link: { id: 'copy-link', name: 'Copy link to file or selection' },
@@ -162,6 +163,7 @@ export function registerCommands(plugin: SourceObserverPlugin) {
 	});
 
 	registerGitHubCommands(plugin, plugin.github);
+	registerCodeNoteCommands(plugin, plugin.codeNotes);
 
 	for (const { format } of COPY_FORMATS) {
 		plugin.addCommand({

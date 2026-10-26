@@ -53,6 +53,7 @@ src/
     locations.ts              normalizes definition, reference and symbol responses, pure
     LspManager.ts             starts/stops one server per type and root; status and progress
     callHierarchy.ts          call graph around a symbol from callHierarchy requests
+    requests.ts               raw server access for model actions; hover and call hierarchy parsing, pure
   codemap/                    code maps, pure (no Obsidian imports)
     mask.ts                   blanks comments and strings so keyword searches stay in code
     imports.ts                import parsers for TS/JS, Python, Go and Rust
@@ -69,6 +70,17 @@ src/
     client.ts                 read-only REST/GraphQL client: pagination, ETags, rate limits, errors
     parse.ts                  API responses → pull requests, files, checks, review threads, pure
     service.ts                clients per host and GitHub repositories per local repository
+  notes/
+    anchor.ts                 text-quote anchoring of margin notes (exact, whitespace-insensitive, approximate), pure
+    noteFormat.ts             the Markdown format of a code file's notes; tolerant, lossless parse and serialize
+    notePaths.ts              where notes and diagrams live in the vault
+    diagramNote.ts            the note a model-drawn diagram is saved as
+    settings.ts               code notes and model settings, defaults, validation
+  model/
+    client.ts                 LLM client: Anthropic Messages API (injected HTTP) or `claude -p`
+    context.ts                identifiers, imports and outlines to tell the model about, pure
+    prompts.ts                prompts for explain, find similar and diagram, with size caps, pure
+    parse.ts                  reading model replies (explanations, rankings, Mermaid), pure
   git/
     GitRepo.ts                resolves root/git dir/prefix; runs git with --no-optional-locks
     status.ts                 pure parser for `git status --porcelain=v2`
@@ -87,12 +99,18 @@ src/
                               pruning), Recorder (vault events → records), attribution and moments
                               (pure), restore plans, timeline, and the Claude Code hook script and log
     CodeMapSource.ts          reads a folder for a code map and builds the canvas text
+    CodeNotesStore.ts         reads and writes margin notes through a small vault interface
+    actionSource.ts           what model actions work on (file, server, grep) and shared helpers
+    modelActions.ts           explain and find similar: gather context, ask the model
+    modelDiagram.ts           diagrams from the outline, imports and call hierarchy
   ui/
     SourceObserverView.ts     layout and wiring
     sidebar/                  Files, Search, Changes and History sections, tree, keyboard navigation
     pane/                     content pane and its renderers (code, diff, message);
                               codeIntel.ts adds language server navigation, navHistory.ts back/forward
     locationModals.ts         pickers for references, definitions and symbols
+    notes/                    margin notes in code tabs (decorations, controller, Code notes panel,
+                              comment modal) and the model actions' UI (progress, cancel, settings)
     editor/                   CodeMirror theme, languages, diff stats, blame gutter
     embed/                    live code embeds rendered inside notes
     vault/                    code tabs, outline, changes and diff panels for code in the vault;
@@ -121,6 +139,10 @@ Rewind's history lives outside the vault, in `utils/appData.ts`'s `rewindDir`. `
 ### Language servers
 
 `@codemirror/lsp-client` handles the protocol, document sync and hover. Heron does definitions, references and symbols itself (`ui/pane/codeIntel.ts`): the library's reference panel can only show files open in an editor, and owning the jumps lets back/forward record only real moves. `tests/fixtures/fake-lsp.mjs` is a tiny server used by `tests/codeNav.test.ts`. `tests/realServers.test.ts` runs against the real `typescript-language-server` and `basedpyright` dev dependencies (or the folder in `HERON_LSP_PATH`), and `npm run dev:vault` points the test vault at the same servers on its first run.
+
+### Margin notes and model actions
+
+Margin notes are anchored by quoted text and context (`notes/anchor.ts`, after the MIT-licensed [Lectern](https://github.com/sqxirts/lectern) plugin), never by line numbers, and re-anchored whenever the code or its note file changes. The model actions build their prompts and read replies in pure functions; tests use a fake model and the fake language server, and `tests/fixtures/fake-claude.mjs` stands in for `claude -p`. Tests never reach the network. The CLI transport runs `claude -p` in the temp folder with no tools, settings, MCP servers or skills: without those flags every call carries the user's whole Claude Code setup (hundreds of thousands of tokens).
 
 ## Pull requests
 
