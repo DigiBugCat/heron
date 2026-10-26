@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { pathToFileURL } from 'url';
-import { LSPClient } from '@codemirror/lsp-client';
+import { LSPClient, serverDiagnostics } from '@codemirror/lsp-client';
 import { ServerChoice, serverForFile } from './servers';
 import { serverPath } from './shellEnv';
 import { StdioTransport } from './transport';
@@ -179,7 +179,7 @@ export class LspManager {
 			timeout: REQUEST_TIMEOUT_MS,
 			initializationOptions: choice.spec.initializationOptions,
 			sanitizeHTML: this.config.sanitizeHTML,
-			extensions: [{ clientCapabilities: { window: { workDoneProgress: true } } }],
+			extensions: [{ clientCapabilities: { window: { workDoneProgress: true } } }, serverDiagnostics()],
 			notificationHandlers: {
 				'$/progress': (_client, params: ProgressParams) => {
 					this.progress(session, params);

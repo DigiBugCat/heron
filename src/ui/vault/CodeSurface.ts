@@ -7,7 +7,7 @@ import { findRepoRoot } from '../../utils/paths';
 import { CodeIntel, JumpKind } from '../pane/codeIntel';
 import { CodeRenderer } from '../pane/renderers';
 
-export type SurfaceChange = 'content' | 'cursor';
+export type SurfaceChange = 'content' | 'cursor' | 'dirty';
 
 export interface CodeSurfaceHost {
 	app: App;
@@ -44,10 +44,12 @@ export class CodeSurface extends Component implements CodeNavigator {
 	private root: string | null = null;
 	private blameOn = false;
 	private listeners = new Set<(change: SurfaceChange) => void>();
+	private dirty = false;
 	status: LspStatus | null = null;
 
-	constructor(parent: HTMLElement, private host: CodeSurfaceHost) {
+	constructor(private parent: HTMLElement, private host: CodeSurfaceHost) {
 		super();
+		parent.addClass('heron-reading');
 		this.messageEl = parent.createDiv({ cls: 'so-message heron-code-message' });
 		this.messageEl.hide();
 		this.code = this.addChild(new CodeRenderer(parent, host.fontSize, host.wordWrap));
@@ -68,6 +70,34 @@ export class CodeSurface extends Component implements CodeNavigator {
 
 	onload() {
 		this.register(this.code.onCursorMove(() => this.emit('cursor')));
+		this.register(this.code.onEdit(() => {
+			if (this.dirty) return;
+			this.dirty = true;
+			this.emit('dirty');
+		}));
+	}
+
+	/** True while there are edits that have not been saved. */
+	get isDirty(): boolean { return this.dirty; }
+
+	get isEditable(): boolean { return this.code.isEditable(); }
+
+	/** Switches between reading (read-only, no error marks) and editing. */
+	setEditable(editable: boolean) {
+		this.code.setEditable(editable);
+		this.parent.toggleClass('heron-reading', !editable);
+		this.parent.toggleClass('heron-editing', editable);
+		this.emit('dirty');
+	}
+
+	/** The current text, including unsaved edits. */
+	text(): string { return this.code.text(); }
+
+	/** Records that the current text has been saved. */
+	markSaved() {
+		if (!this.dirty) return;
+		this.dirty = false;
+		this.emit('dirty');
 	}
 
 	/**
@@ -88,14 +118,19 @@ export class CodeSurface extends Component implements CodeNavigator {
 	/** The file shown, as an absolute path. */
 	get absPath(): string | null { return this.shown; }
 
-	/** Shows `text` as the content of `absPath`, with the cursor at `cursor` if given. */
-	async show(absPath: string, text: string, cursor: Position | null) {
+	/**
+	 * Shows `text` as the content of `absPath`, with the cursor at `cursor` if
+	 * given. `keepScroll` reloads in place, e.g. after the file changed on disk.
+	 * Unsaved edits are discarded; the caller saves first if it wants them.
+	 */
+	async show(absPath: string, text: string, cursor: Position | null, keepScroll = false) {
 		this.messageEl.hide();
 		this.shown = absPath;
 		const dir = path.dirname(absPath);
 		this.root = (await findRepoRoot(dir)) ?? dir;
 		if (this.shown !== absPath) return;
-		this.code.setDocument(text, path.basename(absPath), false, null, cursor);
+		this.code.setDocument(text, path.basename(absPath), keepScroll, null, cursor);
+		this.markSaved();
 		this.emit('content');
 		void this.intel.attach(this.code, absPath);
 		if (this.blameOn) void this.loadBlame(false);

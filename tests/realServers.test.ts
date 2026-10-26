@@ -12,6 +12,8 @@ import { LspManager } from '../src/lsp/LspManager';
 import { mergePaths } from '../src/lsp/shellEnv';
 import type { LocationModal } from '../src/ui/locationModals';
 import { ContentPane } from '../src/ui/pane/ContentPane';
+import { CodeSurface } from '../src/ui/vault/CodeSurface';
+import { currentCompletions, startCompletion } from '@codemirror/autocomplete';
 import type { CodeRenderer } from '../src/ui/pane/renderers';
 import { remove, tempDir, write } from './helpers';
 import { Modal } from './obsidian-shim';
@@ -90,5 +92,52 @@ describe.skipIf(!extraPath)('real language servers', () => {
 		pane.goTo('definition');
 		await vi.waitFor(() => expect(label()).toBe('helpers.py'), { timeout: 30000 });
 		expect(code().cursor()).toEqual({ line: 3, character: 4 });
+	}, 90000);
+
+	async function editableSurface(root: string, file: string, text: string) {
+		const lsp = new LspManager({
+			enabled: () => true,
+			commands: () => ({}),
+			path: () => Promise.resolve(mergePaths(extraPath ?? '', process.env.PATH ?? '')),
+		});
+		const owner = new Component();
+		owner.load();
+		disposers.push(() => { lsp.stopAll(); owner.unload(); });
+		const surface = owner.addChild(new CodeSurface(document.body.createDiv(), {
+			app: {} as never, lsp, fontSize: 13, wordWrap: false,
+			open: () => Promise.resolve(null), label: (p) => p, onStatus: () => undefined,
+		}));
+		write(root, file, text);
+		await surface.show(path.join(root, file), text, null);
+		surface.setEditable(true);
+		await vi.waitFor(() => expect(surface.hasCodeIntel()).toBe(true), { timeout: 30000 });
+		return surface;
+	}
+
+	async function completionsAfterTyping(surface: CodeSurface, typed: string): Promise<string[]> {
+		const view = surface.code.editor()!;
+		const end = view.state.doc.length;
+		view.dispatch({ changes: { from: end, insert: typed }, selection: { anchor: end + typed.length }, userEvent: 'input.type' });
+		startCompletion(view);
+		let labels: string[] = [];
+		await vi.waitFor(() => {
+			labels = currentCompletions(view.state).map((c) => c.label);
+			expect(labels.length).toBeGreaterThan(0);
+		}, { timeout: 30000 });
+		return labels;
+	}
+
+	it('typescript-language-server: completes members of a string', async () => {
+		const root = tempDir('heron-ts-');
+		cleanup.push(root);
+		const surface = await editableSurface(root, 'a.ts', 'const greeting = "hi";\n');
+		expect(await completionsAfterTyping(surface, 'greeting.toUpp')).toContain('toUpperCase');
+	}, 90000);
+
+	it('basedpyright: completes a module attribute', async () => {
+		const root = tempDir('heron-py-');
+		cleanup.push(root);
+		const surface = await editableSurface(root, 'main.py', 'import os\n');
+		expect(await completionsAfterTyping(surface, 'os.pa')).toContain('path');
 	}, 90000);
 });

@@ -64,6 +64,20 @@ export class SourceObserverSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		new Setting(containerEl)
+			.setName('Open code files for')
+			.setDesc('Reading opens code read-only. Switch a tab to editing with the pencil in its header. Edits are saved when you press the save shortcut or leave the tab.')
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption('read', 'Reading')
+					.addOption('edit', 'Editing')
+					.setValue(settings.codeMode)
+					.onChange(async (value) => {
+						settings.codeMode = value === 'edit' ? 'edit' : 'read';
+						await this.plugin.saveSettings();
+					}),
+			);
+
 		new Setting(containerEl).setName('Language servers').setHeading();
 
 		new Setting(containerEl)

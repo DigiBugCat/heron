@@ -1,6 +1,7 @@
-import { FileSystemAdapter, FileView, ItemView, Menu, Notice, TFile, ViewStateResult, WorkspaceLeaf } from 'obsidian';
+import { FileSystemAdapter, FileView, ItemView, Menu, Notice, Scope, setIcon, TFile, ViewStateResult, WorkspaceLeaf } from 'obsidian';
 import * as path from 'path';
 import type SourceObserverPlugin from '../../main';
+import type { CodeMode } from '../../settings';
 import type { FileLocation, Position } from '../../lsp/locations';
 import { formatBytes, MAX_VIEW_BYTES, readViewableFile } from '../../utils/content';
 import { displayPath } from '../../utils/paths';
@@ -110,9 +111,25 @@ function addActions(view: ItemView, surface: () => CodeSurface, plugin: SourceOb
 export class CodeFileView extends FileView implements CodeTab {
 	private surface!: CodeSurface;
 	private pendingCursor: Position | null = null;
+	/** 'edit' or 'read'; kept in the tab's state so it survives restarts. */
+	private mode: CodeMode;
+	private modeButton: HTMLElement | null = null;
+	/** Text this tab last wrote, so its own save doesn't look like an outside change. */
+	private lastSaved: string | null = null;
+	private warnedOutsideChange = false;
 
 	constructor(leaf: WorkspaceLeaf, private plugin: SourceObserverPlugin) {
 		super(leaf);
+		this.mode = plugin.settings.codeMode;
+		this.scope = new Scope(this.app.scope);
+		this.scope.register(['Mod'], 'S', () => {
+			void this.save();
+			return false;
+		});
+		this.scope.register(['Mod'], 'E', () => {
+			this.setMode(this.mode === 'edit' ? 'read' : 'edit');
+			return false;
+		});
 	}
 
 	getViewType() { return CODE_VIEW_TYPE; }
@@ -129,20 +146,43 @@ export class CodeFileView extends FileView implements CodeTab {
 		super.onload();
 		this.contentEl.addClass('heron-code-tab');
 		this.surface = this.addChild(new CodeSurface(this.contentEl, surfaceHost(this.plugin, this.leaf)));
+		this.modeButton = this.addAction('pencil', 'Edit', () => this.setMode(this.mode === 'edit' ? 'read' : 'edit'));
 		addActions(this, () => this.surface, this.plugin, () => this.file);
 		followSettings(this, () => this.surface, this.plugin);
+		this.applyMode();
+		this.register(this.surface.onChange((change) => { if (change === 'dirty') this.plugin.updateStatusBar(); }));
 		this.registerEvent(this.app.vault.on('modify', (f) => {
-			if (f instanceof TFile && f === this.file) void this.loadContent(f, this.surface.code.cursor());
+			if (f instanceof TFile && f === this.file) void this.changedOnDisk(f);
 		}));
+		// Leaving the tab saves it, like switching away from a note.
+		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
+			if (leaf !== this.leaf && this.surface.isDirty) void this.save();
+		}));
+		this.registerEvent(this.app.workspace.on('quit', () => { void this.save(); }));
+	}
+
+	getState(): Record<string, unknown> {
+		return { ...super.getState(), mode: this.mode };
+	}
+
+	async setState(state: unknown, result: ViewStateResult): Promise<void> {
+		const mode = (state as { mode?: unknown } | null)?.mode;
+		if (mode === 'edit' || mode === 'read') {
+			this.mode = mode;
+			this.applyMode();
+		}
+		await super.setState(state, result);
 	}
 
 	async onLoadFile(file: TFile): Promise<void> {
 		const cursor = this.pendingCursor;
 		this.pendingCursor = null;
-		await this.loadContent(file, cursor);
+		this.warnedOutsideChange = false;
+		await this.loadContent(file, cursor, false);
 	}
 
-	async onUnloadFile(): Promise<void> {
+	async onUnloadFile(file: TFile): Promise<void> {
+		await this.save(file);
 		this.surface.clear();
 	}
 
@@ -159,18 +199,67 @@ export class CodeFileView extends FileView implements CodeTab {
 		return { ...super.getEphemeralState(), ...(cursor ? { heronCursor: cursor } : {}) };
 	}
 
-	private async loadContent(file: TFile, cursor: Position | null) {
+	/** True while the tab shows its file editable. */
+	isEditing(): boolean { return this.mode === 'edit'; }
+
+	/** Switches between reading and editing; leaving editing saves first. */
+	setMode(mode: CodeMode) {
+		if (mode === this.mode) return;
+		if (mode === 'read') void this.save();
+		this.mode = mode;
+		this.applyMode();
+		this.app.workspace.requestSaveLayout();
+		this.plugin.updateStatusBar();
+		if (mode === 'edit') this.surface.code.editor()?.focus();
+	}
+
+	/** Writes unsaved edits to the file. */
+	async save(file: TFile | null = this.file) {
+		if (!file || !this.surface.isDirty) return;
+		const text = this.surface.text();
+		this.lastSaved = text;
+		await this.app.vault.modify(file, text);
+		if (this.surface.text() === text) this.surface.markSaved();
+		this.warnedOutsideChange = false;
+	}
+
+	private applyMode() {
+		const editing = this.mode === 'edit';
+		this.surface?.setEditable(editing);
+		if (this.modeButton) {
+			setIcon(this.modeButton, editing ? 'book-open' : 'pencil');
+			this.modeButton.setAttr('aria-label', editing ? 'Stop editing (Mod+E)' : 'Edit (Mod+E)');
+		}
+	}
+
+	/**
+	 * The file changed on disk. Our own saves are ignored; otherwise reload,
+	 * unless there are unsaved edits, which are kept until saved.
+	 */
+	private async changedOnDisk(file: TFile) {
+		const disk = await this.app.vault.read(file);
+		if (disk === this.lastSaved || disk === this.surface.text()) return;
+		if (this.surface.isDirty) {
+			if (!this.warnedOutsideChange) new Notice(`${file.name} changed outside Obsidian. Your unsaved edits are kept; saving will overwrite the other change.`);
+			this.warnedOutsideChange = true;
+			return;
+		}
+		await this.loadContent(file, this.surface.code.cursor(), true);
+	}
+
+	private async loadContent(file: TFile, cursor: Position | null, keepScroll: boolean) {
 		if (file.stat.size > MAX_VIEW_BYTES) {
 			this.surface.showMessage(`${file.name} is too large to display (${formatBytes(file.stat.size)})`);
 			return;
 		}
-		const text = await this.app.vault.cachedRead(file);
+		const text = await this.app.vault.read(file);
 		if (this.file !== file) return;
 		if (text.includes('\0')) {
 			this.surface.showMessage(`${file.name} is a binary file`);
 			return;
 		}
-		await this.surface.show(path.join(vaultBasePath(this.plugin), file.path), text, cursor);
+		this.lastSaved = text;
+		await this.surface.show(path.join(vaultBasePath(this.plugin), file.path), text, cursor, keepScroll);
 	}
 }
 

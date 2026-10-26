@@ -1,6 +1,6 @@
 import { App, Component, Notice, Platform } from 'obsidian';
 import { pathToFileURL } from 'url';
-import { hoverTooltips, LSPClient, LSPPlugin } from '@codemirror/lsp-client';
+import { hoverTooltips, LSPClient, LSPPlugin, serverCompletion, signatureHelp } from '@codemirror/lsp-client';
 import type { Extension } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { FileLocation, flattenDocumentSymbols, pathOfUri, toFileLocations, workspaceSymbols } from '../../lsp/locations';
@@ -100,6 +100,9 @@ export class CodeIntel extends Component {
 		code.setLanguageServer([
 			target.session.client.plugin(pathToFileURL(absPath).href, target.choice.languageId),
 			hoverTooltips({ hoverTime: 350 }),
+			// Inert while the editor is read-only: both react to typing.
+			serverCompletion(),
+			signatureHelp(),
 			this.bindings(),
 		]);
 		this.attached = { absPath, code, session: target.session };

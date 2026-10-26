@@ -771,3 +771,38 @@
 	-webkit-user-select: text;
 	user-select: text;
 }
+
+/* ── Editing code ────────────────────────────────────────────── */
+.heron-status-mode.is-dirty { color: var(--text-accent); }
+.heron-status-sep { color: var(--text-faint); }
+
+/* Error marks from the language server only while editing; reading stays clean. */
+.heron-reading .cm-lintRange { background-image: none; }
+.heron-reading .cm-gutter-lint,
+.heron-reading .cm-tooltip-lint { display: none; }
+
+/* Autocomplete and signature help, in Obsidian's colours. */
+.heron-code-tab .cm-tooltip-autocomplete,
+.heron-code-tab .cm-tooltip.cm-lsp-signature-tooltip,
+.heron-code-tab .cm-tooltip-lint {
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	box-shadow: var(--shadow-s);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+}
+.heron-code-tab .cm-tooltip-autocomplete > ul > li { padding: 2px 8px; }
+.heron-code-tab .cm-tooltip-autocomplete > ul > li[aria-selected] {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+.heron-code-tab .cm-completionDetail { color: var(--text-muted); font-style: normal; margin-left: 1em; }
+.heron-code-tab .cm-completionInfo {
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	font-family: var(--font-interface);
+	padding: 6px 8px;
+}

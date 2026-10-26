@@ -63,6 +63,10 @@ function installDomHelpers() {
 	el.setCssProps = function (this: HTMLElement, props: Record<string, string>) {
 		for (const [k, v] of Object.entries(props)) this.style.setProperty(k, v);
 	};
+	// Obsidian's hide/show set `display`; a class is enough for `isShown` below.
+	el.hide = function (this: Element) { this.classList.add('so-hidden'); };
+	el.show = function (this: Element) { this.classList.remove('so-hidden'); };
+	el.toggle = function (this: Element, show: boolean) { this.classList.toggle('so-hidden', !show); };
 	// jsdom has no layout; treat elements as shown unless an ancestor is hidden by class.
 	el.isShown = function (this: Element) {
 		return this.isConnected && !this.closest('.so-hidden, .so-section-collapsed');

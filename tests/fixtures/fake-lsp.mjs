@@ -26,7 +26,20 @@ function handle(msg) {
 			return reply({ capabilities: {
 				textDocumentSync: 1, hoverProvider: true, definitionProvider: true, referencesProvider: true,
 				documentSymbolProvider: true, workspaceSymbolProvider: true,
+				completionProvider: { triggerCharacters: ['.'] },
 			} });
+		case 'textDocument/didOpen':
+			// One warning on the first line, so clients can show error marks.
+			return send({ method: 'textDocument/publishDiagnostics', params: {
+				uri: msg.params.textDocument.uri,
+				version: msg.params.textDocument.version,
+				diagnostics: [{ range: at(0, 0), severity: 2, message: 'fake warning' }],
+			} });
+		case 'textDocument/completion':
+			return reply({ isIncomplete: false, items: [
+				{ label: 'thingOne', kind: 3, detail: '() => void' },
+				{ label: 'thingTwo', kind: 6 },
+			] });
 		case 'textDocument/definition':
 			return reply({ uri: `${root}/target.ts`, range: at(2, 4) });
 		case 'textDocument/references':

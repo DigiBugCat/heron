@@ -1,5 +1,8 @@
 import { BUILTIN_SERVERS } from './lsp/servers';
 
+/** Whether code tabs open read-only or editable. */
+export type CodeMode = 'read' | 'edit';
+
 /** How diffs are laid out: one interleaved column, or old and new side by side. */
 export type DiffLayout = 'unified' | 'split';
 
@@ -28,6 +31,8 @@ export interface SourceObserverSettings {
 	serverCommands: Record<string, string>;
 	/** The Code outline and Code changes panels were added to the right sidebar once. */
 	sidebarPanelsAdded: boolean;
+	/** How code files open: for reading, or ready to edit. */
+	codeMode: CodeMode;
 }
 
 export const DEFAULT_SETTINGS: SourceObserverSettings = {
@@ -43,6 +48,7 @@ export const DEFAULT_SETTINGS: SourceObserverSettings = {
 	languageServers: true,
 	serverCommands: {},
 	sidebarPanelsAdded: false,
+	codeMode: 'read',
 };
 
 export const FONT_SIZE_RANGE = { min: 10, max: 20 } as const;
@@ -83,6 +89,7 @@ export function sanitizeSettings(raw: unknown): SourceObserverSettings {
 		languageServers: typeof data.languageServers === 'boolean' ? data.languageServers : DEFAULT_SETTINGS.languageServers,
 		serverCommands: sanitizeServerCommands(data.serverCommands),
 		sidebarPanelsAdded: data.sidebarPanelsAdded === true,
+		codeMode: data.codeMode === 'edit' ? 'edit' : 'read',
 	};
 }
 

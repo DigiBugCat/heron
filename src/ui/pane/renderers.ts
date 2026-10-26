@@ -1,7 +1,9 @@
 import { Component, setIcon } from 'obsidian';
-import { Compartment, EditorSelection, EditorState, Extension, Text } from '@codemirror/state';
+import { Annotation, Compartment, EditorSelection, EditorState, Extension, Text, Transaction } from '@codemirror/state';
+import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { Decoration, drawSelection, EditorView, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view';
-import { syntaxHighlighting } from '@codemirror/language';
+import { bracketMatching, indentOnInput, syntaxHighlighting } from '@codemirror/language';
 import { MergeView, unifiedMergeView } from '@codemirror/merge';
 import { gotoLine, highlightSelectionMatches, openSearchPanel, search, searchKeymap } from '@codemirror/search';
 import type { BlameCommit } from '../../git/blame';
@@ -62,13 +64,33 @@ export abstract class PaneRenderer extends Component {
 	}
 }
 
-function baseEditorExtensions(): Extension[] {
+function readOnlyExtensions(): Extension[] {
 	return [
 		EditorState.readOnly.of(true),
 		EditorView.editable.of(false),
 		// Read-only content is not focusable by default; without focus the
 		// find and go-to-line keys would never reach the editor.
 		EditorView.contentAttributes.of({ tabindex: '0' }),
+	];
+}
+
+/** What an editable code view adds: undo, the usual editing keys, brackets and indentation. */
+function editingExtensions(): Extension[] {
+	return [
+		history(),
+		closeBrackets(),
+		bracketMatching(),
+		indentOnInput(),
+		keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
+	];
+}
+
+/** Marks transactions that load a document, as opposed to the user's edits. */
+const loadDocument = Annotation.define<boolean>();
+const LOAD_ANNOTATIONS = [loadDocument.of(true), Transaction.addToHistory.of(false)];
+
+function baseEditorExtensions(): Extension[] {
+	return [
 		search({ top: true }),
 		// Draw the selection ourselves: Obsidian turns off native text selection
 		// outside editable areas, so a read-only editor's selection would be invisible.
@@ -132,6 +154,9 @@ export class CodeRenderer extends PaneRenderer {
 	private lsp = new Compartment();
 	private lspShown = false;
 	private cursorListeners = new Set<() => void>();
+	private editListeners = new Set<() => void>();
+	private editing = new Compartment();
+	private editable = false;
 
 	constructor(parent: HTMLElement, private fontSize: number, private wordWrap = false) {
 		super(parent, 'so-code-view');
@@ -144,6 +169,7 @@ export class CodeRenderer extends PaneRenderer {
 				extensions: [
 					// First, so the blame gutter sits left of the line numbers.
 					this.blame.of([]),
+					this.editing.of(readOnlyExtensions()),
 					...baseEditorExtensions(),
 					this.language.of([]),
 					this.font.of(fontTheme(this.fontSize)),
@@ -152,6 +178,9 @@ export class CodeRenderer extends PaneRenderer {
 					this.lsp.of([]),
 					EditorView.updateListener.of((update) => {
 						if (update.selectionSet) for (const listener of this.cursorListeners) listener();
+						if (update.docChanged && !update.transactions.some((tr) => tr.annotation(loadDocument))) {
+							for (const listener of this.editListeners) listener();
+						}
 					}),
 				],
 			}),
@@ -178,9 +207,11 @@ export class CodeRenderer extends PaneRenderer {
 		this.setLanguageServer(null);
 		const { scrollTop, scrollLeft } = view.scrollDOM;
 		const doc = Text.of(text.split(/\r\n?|\n/));
+		this.resetHistory();
 		if (cursor && !keepScroll) {
 			const anchor = offsetOf(doc, cursor);
 			view.dispatch({
+				annotations: LOAD_ANNOTATIONS,
 				changes: { from: 0, to: view.state.doc.length, insert: doc },
 				effects: [
 					this.language.reconfigure(languageFor(fileName)),
@@ -198,6 +229,7 @@ export class CodeRenderer extends PaneRenderer {
 			? EditorSelection.range(doc.line(range.from).from, doc.line(range.to).to)
 			: EditorSelection.cursor(0);
 		view.dispatch({
+			annotations: LOAD_ANNOTATIONS,
 			changes: { from: 0, to: view.state.doc.length, insert: doc },
 			effects: [
 				this.language.reconfigure(languageFor(fileName)),
@@ -223,6 +255,31 @@ export class CodeRenderer extends PaneRenderer {
 	setBlame(lines: BlameCommit[] | null, onOpen?: (commit: BlameCommit) => void) {
 		this.blameShown = lines !== null;
 		this.view?.dispatch({ effects: this.blame.reconfigure(lines ? blameGutter(lines, onOpen) : []) });
+	}
+
+	/** Allows or prevents editing; undo history starts fresh either way. */
+	setEditable(editable: boolean) {
+		if (editable === this.editable) return;
+		this.editable = editable;
+		this.view?.dispatch({ effects: this.editing.reconfigure(editable ? editingExtensions() : readOnlyExtensions()) });
+	}
+
+	isEditable(): boolean { return this.editable; }
+
+	/** The current text, including unsaved edits. */
+	text(): string { return this.view?.state.doc.toString() ?? ''; }
+
+	/** Calls `listener` after each edit the user makes (not when a document is loaded). */
+	onEdit(listener: () => void): () => void {
+		this.editListeners.add(listener);
+		return () => this.editListeners.delete(listener);
+	}
+
+	/** Forgets undo history, so a newly loaded document can't be undone into the previous one. */
+	private resetHistory() {
+		if (!this.editable || !this.view) return;
+		this.view.dispatch({ effects: this.editing.reconfigure([]) });
+		this.view.dispatch({ effects: this.editing.reconfigure(editingExtensions()) });
 	}
 
 	/** Adds language server features for the current document, or removes them for null. */
@@ -315,6 +372,7 @@ export class DiffRenderer extends PaneRenderer {
 
 	onload() {
 		const extensions = [
+			...readOnlyExtensions(),
 			...baseEditorExtensions(),
 			languageFor(this.fileName),
 			this.font.of(fontTheme(this.fontSize)),
