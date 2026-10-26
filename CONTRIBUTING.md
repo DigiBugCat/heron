@@ -52,6 +52,17 @@ src/
     workspace.ts              lsp-client Workspace for Heron's single reused editor
     locations.ts              normalizes definition, reference and symbol responses, pure
     LspManager.ts             starts/stops one server per type and root; status and progress
+    callHierarchy.ts          call graph around a symbol from callHierarchy requests
+  codemap/                    code maps, pure (no Obsidian imports)
+    mask.ts                   blanks comments and strings so keyword searches stay in code
+    imports.ts                import parsers for TS/JS, Python, Go and Rust
+    resolve.ts                resolves imports to repository files (tsconfig paths, packages, modules)
+    tsconfig.ts               tsconfig/jsconfig `paths`, `baseUrl` and `extends`; JSON with comments
+    outline.ts                top-level symbols from a quick declaration scan
+    graph.ts                  file graph, and the folder graph for large folders
+    layout.ts                 deterministic layered layout with folder groups
+    canvas.ts                 JSON Canvas output, stable ids, and the merge that keeps moved cards
+    models.ts, callMap.ts     card texts and colours for file, folder and call maps
   git/
     GitRepo.ts                resolves root/git dir/prefix; runs git with --no-optional-locks
     status.ts                 pure parser for `git status --porcelain=v2`
@@ -66,6 +77,7 @@ src/
     FileIndex.ts              cached file list for search (git ls-files or a bounded walk)
     ContentSearch.ts          search in files: git grep, or reading indexed files; match previews
     Worktrees.ts              worktree summaries (changes, ahead/behind) and folder mapping
+    CodeMapSource.ts          reads a folder for a code map and builds the canvas text
   ui/
     SourceObserverView.ts     layout and wiring
     sidebar/                  Files, Search, Changes and History sections, tree, keyboard navigation
@@ -76,6 +88,7 @@ src/
     embed/                    live code embeds rendered inside notes
     fileMenu.ts               right-click menu for files, folders and changes
     worktreeMenu.ts           the worktree switcher menu
+    codemap/                  code map commands, folder picker, and writing canvases to the vault
   utils/                      file reading, icons, paths, request tokens, OS integration
 ```
 

@@ -179,7 +179,11 @@ export class LspManager {
 			timeout: REQUEST_TIMEOUT_MS,
 			initializationOptions: choice.spec.initializationOptions,
 			sanitizeHTML: this.config.sanitizeHTML,
-			extensions: [{ clientCapabilities: { window: { workDoneProgress: true } } }, serverDiagnostics()],
+			extensions: [
+				// Some servers (typescript-language-server) only offer call hierarchy, used by call graphs, when asked.
+				{ clientCapabilities: { window: { workDoneProgress: true }, textDocument: { callHierarchy: { dynamicRegistration: false } } } },
+				serverDiagnostics(),
+			],
 			notificationHandlers: {
 				'$/progress': (_client, params: ProgressParams) => {
 					this.progress(session, params);

@@ -1,7 +1,7 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type SourceObserverPlugin from '../main';
 import { BUILTIN_SERVERS } from '../lsp/servers';
-import { DiffLayout, FONT_SIZE_RANGE } from '../settings';
+import { DEFAULT_SETTINGS, DiffLayout, FONT_SIZE_RANGE, sanitizeVaultFolder } from '../settings';
 
 /** Obsidian settings tab for Heron. */
 export class SourceObserverSettingTab extends PluginSettingTab {
@@ -74,6 +74,19 @@ export class SourceObserverSettingTab extends PluginSettingTab {
 					.setValue(settings.codeMode)
 					.onChange(async (value) => {
 						settings.codeMode = value === 'edit' ? 'edit' : 'read';
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName('Code map folder')
+			.setDesc('Folder where code maps and call graphs are saved.')
+			.addText((text) =>
+				text
+					.setPlaceholder(DEFAULT_SETTINGS.codeMapFolder)
+					.setValue(settings.codeMapFolder)
+					.onChange(async (value) => {
+						settings.codeMapFolder = sanitizeVaultFolder(value, DEFAULT_SETTINGS.codeMapFolder);
 						await this.plugin.saveSettings();
 					}),
 			);

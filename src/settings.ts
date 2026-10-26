@@ -33,6 +33,8 @@ export interface SourceObserverSettings {
 	sidebarPanelsAdded: boolean;
 	/** How code files open: for reading, or ready to edit. */
 	codeMode: CodeMode;
+	/** Vault folder that code maps and call graphs are saved in. */
+	codeMapFolder: string;
 }
 
 export const DEFAULT_SETTINGS: SourceObserverSettings = {
@@ -49,6 +51,7 @@ export const DEFAULT_SETTINGS: SourceObserverSettings = {
 	serverCommands: {},
 	sidebarPanelsAdded: false,
 	codeMode: 'read',
+	codeMapFolder: 'Code maps',
 };
 
 export const FONT_SIZE_RANGE = { min: 10, max: 20 } as const;
@@ -90,7 +93,15 @@ export function sanitizeSettings(raw: unknown): SourceObserverSettings {
 		serverCommands: sanitizeServerCommands(data.serverCommands),
 		sidebarPanelsAdded: data.sidebarPanelsAdded === true,
 		codeMode: data.codeMode === 'edit' ? 'edit' : 'read',
+		codeMapFolder: sanitizeVaultFolder(data.codeMapFolder, DEFAULT_SETTINGS.codeMapFolder),
 	};
+}
+
+/** A vault folder path without leading or trailing slashes, or `fallback` when empty or invalid. */
+export function sanitizeVaultFolder(raw: unknown, fallback: string): string {
+	if (typeof raw !== 'string') return fallback;
+	const cleaned = raw.split('/').map((part) => part.trim()).filter((part) => part && part !== '.' && part !== '..').join('/');
+	return cleaned || fallback;
 }
 
 function sanitizeServerCommands(raw: unknown): Record<string, string> {

@@ -24,6 +24,7 @@ src/commands.ts      command palette commands — IDs are stable, never rename t
 src/settings.ts      settings model, defaults, validation
 src/links/           obsidian:// links, embed and code block formats, embed processor
 src/lsp/             language servers: framing, transport, server specs, manager (no Obsidian imports)
+src/codemap/         code maps: import parsing and resolution, graph, layout, JSON Canvas output and merge (pure, no Obsidian imports)
 src/git/             runs and parses git; parsers are pure functions
 src/services/        state and change detection (RepoState, RepoWatcher, FileIndex, ContentSearch, Worktrees)
 src/ui/              the view, sidebar sections, content pane and renderers, CodeMirror extensions, menus
