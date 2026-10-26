@@ -2,6 +2,8 @@ import { Notice } from 'obsidian';
 import type SourceObserverPlugin from './main';
 import type { CodeNavigator } from './ui/vault/CodeSurface';
 import { isCodeTab } from './ui/vault/codeTabs';
+import { CHANGES_VIEW_TYPE } from './ui/vault/ChangesView';
+import { OUTLINE_VIEW_TYPE } from './ui/vault/OutlineView';
 import type { JumpKind } from './ui/pane/codeIntel';
 import { COPY_FORMATS, CopyFormat } from './links/sourceLink';
 import { SourceObserverView } from './ui/SourceObserverView';
@@ -135,6 +137,18 @@ export function registerCommands(plugin: SourceObserverPlugin) {
 		id: 'go-forward',
 		name: 'Go forward',
 		checkCallback: (checking) => onActiveView(checking, (v) => v.canGoForward(), (v) => v.goForward()),
+	});
+
+	plugin.addCommand({
+		id: 'show-code-outline',
+		name: 'Show code outline',
+		callback: () => { void plugin.revealPanel(OUTLINE_VIEW_TYPE); },
+	});
+
+	plugin.addCommand({
+		id: 'show-code-changes',
+		name: 'Show code changes',
+		callback: () => { void plugin.revealPanel(CHANGES_VIEW_TYPE); },
 	});
 
 	plugin.addCommand({

@@ -1,11 +1,13 @@
 import { App, Component, Notice } from 'obsidian';
 import * as path from 'path';
 import { GitRepo } from '../../git/GitRepo';
-import type { FileLocation, Position } from '../../lsp/locations';
+import { FileLocation, OutlineNode, outlineTree, Position } from '../../lsp/locations';
 import type { LspManager, LspStatus } from '../../lsp/LspManager';
 import { findRepoRoot } from '../../utils/paths';
 import { CodeIntel, JumpKind } from '../pane/codeIntel';
 import { CodeRenderer } from '../pane/renderers';
+
+export type SurfaceChange = 'content' | 'cursor';
 
 export interface CodeSurfaceHost {
 	app: App;
@@ -41,6 +43,7 @@ export class CodeSurface extends Component implements CodeNavigator {
 	private shown: string | null = null;
 	private root: string | null = null;
 	private blameOn = false;
+	private listeners = new Set<(change: SurfaceChange) => void>();
 	status: LspStatus | null = null;
 
 	constructor(parent: HTMLElement, private host: CodeSurfaceHost) {
@@ -57,9 +60,29 @@ export class CodeSurface extends Component implements CodeNavigator {
 			onStatus: (status) => {
 				this.status = status;
 				this.host.onStatus();
+				this.emit('content');
 			},
 			onHistoryChange: () => undefined,
 		}));
+	}
+
+	onload() {
+		this.register(this.code.onCursorMove(() => this.emit('cursor')));
+	}
+
+	/**
+	 * Calls `listener` when the shown file or its language server changes
+	 * ('content') or the cursor moves ('cursor'); returns an unsubscribe function.
+	 */
+	onChange(listener: (change: SurfaceChange) => void): () => void {
+		this.listeners.add(listener);
+		return () => this.listeners.delete(listener);
+	}
+
+	/** The shown file's symbols, or null without a language server. */
+	async outline(): Promise<OutlineNode[] | null> {
+		const response = await this.intel.documentSymbols();
+		return response === null ? null : outlineTree(response);
 	}
 
 	/** The file shown, as an absolute path. */
@@ -73,6 +96,7 @@ export class CodeSurface extends Component implements CodeNavigator {
 		this.root = (await findRepoRoot(dir)) ?? dir;
 		if (this.shown !== absPath) return;
 		this.code.setDocument(text, path.basename(absPath), false, null, cursor);
+		this.emit('content');
 		void this.intel.attach(this.code, absPath);
 		if (this.blameOn) void this.loadBlame(false);
 	}
@@ -89,6 +113,11 @@ export class CodeSurface extends Component implements CodeNavigator {
 		this.shown = null;
 		this.intel.detach();
 		this.code.setDocument('', '', false);
+		this.emit('content');
+	}
+
+	private emit(change: SurfaceChange) {
+		for (const listener of this.listeners) listener(change);
 	}
 
 	moveCursor(pos: Position) {

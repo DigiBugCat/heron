@@ -2,7 +2,7 @@ import { App, Component, debounce, TFolder } from 'obsidian';
 import { promises as fsp } from 'fs';
 import * as path from 'path';
 import { ChangeKind, primaryKind } from '../../git/status';
-import { RepoState } from '../../services/RepoState';
+import { RepoSnapshot, RepoState } from '../../services/RepoState';
 import { RepoWatcher } from '../../services/RepoWatcher';
 
 /** How deep under the vault root to look for repositories. */
@@ -16,6 +16,14 @@ interface TrackedRepo {
 	/** Change kind by vault path. */
 	kinds: Map<string, ChangeKind>;
 	watching: boolean;
+	snapshot: RepoSnapshot;
+}
+
+/** A repository in the vault and its latest git state. */
+export interface VaultRepo {
+	/** Vault path of the repository's folder. */
+	rel: string;
+	snapshot: RepoSnapshot;
 }
 
 /** Finds folders under `base` (up to `depth` levels) that hold a `.git` entry, as vault paths. */
@@ -65,6 +73,7 @@ export class ExplorerGit extends Component {
 	private observers: MutationObserver[] = [];
 	private apply = debounce(() => this.decorate(), 50, true);
 	private rediscover = debounce(() => { void this.discover(); }, 1000, true);
+	private listeners = new Set<() => void>();
 
 	constructor(private app: App, private basePath: string) {
 		super();
@@ -98,6 +107,22 @@ export class ExplorerGit extends Component {
 		return [...this.repos.keys()];
 	}
 
+	/** Every tracked repository with its latest state, in vault path order. */
+	vaultRepos(): VaultRepo[] {
+		return [...this.repos].map(([rel, repo]) => ({ rel, snapshot: repo.snapshot })).sort((a, b) => a.rel.localeCompare(b.rel));
+	}
+
+	/** Calls `listener` whenever any repository's state changes; returns an unsubscribe function. */
+	onChange(listener: () => void): () => void {
+		this.listeners.add(listener);
+		return () => this.listeners.delete(listener);
+	}
+
+	/** Re-reads git status for every repository now. */
+	refresh() {
+		for (const repo of this.repos.values()) void repo.state.refresh();
+	}
+
 	/** Finds repositories in the vault and starts or stops tracking them. */
 	async discover() {
 		const found = new Set(await findRepos(this.basePath));
@@ -120,6 +145,7 @@ export class ExplorerGit extends Component {
 			state,
 			kinds: new Map(),
 			watching: false,
+			snapshot: { kind: 'none' },
 			watcher: this.addChild(new RepoWatcher({
 				isVisible: () => true,
 				onGitChange: () => { void state.refresh(); },
@@ -128,6 +154,7 @@ export class ExplorerGit extends Component {
 		};
 		this.repos.set(rel, tracked);
 		state.onChange((snapshot) => {
+			tracked.snapshot = snapshot;
 			tracked.kinds = new Map();
 			if (snapshot.kind === 'repo') {
 				for (const file of snapshot.status.files) {
@@ -152,6 +179,7 @@ export class ExplorerGit extends Component {
 			}
 		}
 		this.apply();
+		for (const listener of this.listeners) listener();
 	}
 
 	/** Watches each file explorer for redraws (expanding folders, scrolling, renames). */

@@ -148,3 +148,63 @@ export function workspaceSymbols(response: unknown, limit: number): SymbolEntry[
 	}
 	return result;
 }
+
+/** A symbol in a file's outline, with its full extent and nested symbols. */
+export interface OutlineNode {
+	name: string;
+	kind: string;
+	/** Extra text from the server, e.g. a signature. */
+	detail: string;
+	/** Where to put the cursor: the symbol's name. */
+	position: Position;
+	start: Position;
+	end: Position;
+	children: OutlineNode[];
+}
+
+function comparePositions(a: Position, b: Position): number {
+	return a.line - b.line || a.character - b.character;
+}
+
+/**
+ * Builds an outline from a `textDocument/documentSymbol` response.
+ * Hierarchical `DocumentSymbol`s keep their nesting; flat
+ * `SymbolInformation`s become a flat list. Siblings are in document order.
+ */
+export function outlineTree(response: unknown): OutlineNode[] {
+	if (!Array.isArray(response)) return [];
+	const build = (raw: unknown): OutlineNode | null => {
+		if (!isObject(raw) || typeof raw.name !== 'string') return null;
+		if (isObject(raw.location)) {
+			const info = raw as unknown as LspSymbolInformation;
+			const range = info.location.range ?? { start: ORIGIN, end: ORIGIN };
+			return { name: info.name, kind: symbolKindName(info.kind), detail: '', position: range.start, start: range.start, end: range.end, children: [] };
+		}
+		if (!isObject(raw.range)) return null;
+		const sym = raw as unknown as LspDocumentSymbol & { detail?: unknown };
+		const children = Array.isArray(sym.children) ? sym.children.map(build).filter((n): n is OutlineNode => !!n) : [];
+		children.sort((a, b) => comparePositions(a.start, b.start));
+		return {
+			name: sym.name,
+			kind: symbolKindName(sym.kind),
+			detail: typeof sym.detail === 'string' ? sym.detail : '',
+			position: (sym.selectionRange ?? sym.range).start,
+			start: sym.range.start,
+			end: sym.range.end,
+			children,
+		};
+	};
+	const nodes = response.map(build).filter((n): n is OutlineNode => !!n);
+	nodes.sort((a, b) => comparePositions(a.start, b.start));
+	return nodes;
+}
+
+/** The chain of symbols containing `pos`, outermost first. */
+export function enclosingSymbols(nodes: OutlineNode[], pos: Position): OutlineNode[] {
+	for (const node of nodes) {
+		if (comparePositions(node.start, pos) <= 0 && comparePositions(pos, node.end) <= 0) {
+			return [node, ...enclosingSymbols(node.children, pos)];
+		}
+	}
+	return [];
+}

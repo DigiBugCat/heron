@@ -1,6 +1,6 @@
 import { Component, setIcon } from 'obsidian';
 import { Compartment, EditorSelection, EditorState, Extension, Text } from '@codemirror/state';
-import { Decoration, EditorView, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view';
+import { Decoration, drawSelection, EditorView, highlightActiveLine, keymap, lineNumbers } from '@codemirror/view';
 import { syntaxHighlighting } from '@codemirror/language';
 import { MergeView, unifiedMergeView } from '@codemirror/merge';
 import { gotoLine, highlightSelectionMatches, openSearchPanel, search, searchKeymap } from '@codemirror/search';
@@ -70,6 +70,9 @@ function baseEditorExtensions(): Extension[] {
 		// find and go-to-line keys would never reach the editor.
 		EditorView.contentAttributes.of({ tabindex: '0' }),
 		search({ top: true }),
+		// Draw the selection ourselves: Obsidian turns off native text selection
+		// outside editable areas, so a read-only editor's selection would be invisible.
+		drawSelection(),
 		highlightSelectionMatches(),
 		keymap.of(searchKeymap),
 		lineNumbers(),
@@ -128,6 +131,7 @@ export class CodeRenderer extends PaneRenderer {
 	private wrap = new Compartment();
 	private lsp = new Compartment();
 	private lspShown = false;
+	private cursorListeners = new Set<() => void>();
 
 	constructor(parent: HTMLElement, private fontSize: number, private wordWrap = false) {
 		super(parent, 'so-code-view');
@@ -146,6 +150,9 @@ export class CodeRenderer extends PaneRenderer {
 					this.highlight.of([]),
 					this.wrap.of(wrapExtension(this.wordWrap)),
 					this.lsp.of([]),
+					EditorView.updateListener.of((update) => {
+						if (update.selectionSet) for (const listener of this.cursorListeners) listener();
+					}),
 				],
 			}),
 		});
@@ -231,6 +238,12 @@ export class CodeRenderer extends PaneRenderer {
 		if (!view) return;
 		const anchor = offsetOf(view.state.doc, pos);
 		view.dispatch({ selection: EditorSelection.cursor(anchor), effects: EditorView.scrollIntoView(anchor, { y: 'center' }) });
+	}
+
+	/** Calls `listener` whenever the cursor or selection moves; returns an unsubscribe function. */
+	onCursorMove(listener: () => void): () => void {
+		this.cursorListeners.add(listener);
+		return () => this.cursorListeners.delete(listener);
 	}
 
 	/** The cursor as a zero-based line and column. */

@@ -198,6 +198,25 @@ export class CodeIntel extends Component {
 		this.pick(await this.withPreviews(shown), `${locations.length} references${suffix}`, ctx.from);
 	}
 
+	/**
+	 * The raw `textDocument/documentSymbol` response for the shown file, or
+	 * null when there is no server or it failed. Quiet: for panels, not commands.
+	 */
+	async documentSymbols(): Promise<unknown> {
+		const attached = this.attached;
+		if (!attached || !this.manager || !this.isAvailable()) return null;
+		await this.manager.whenIdle(attached.session, MAX_IDLE_WAIT_MS);
+		const view = attached.code.editor();
+		const plugin = view && LSPPlugin.get(view);
+		if (this.attached !== attached || !plugin || !supports(plugin.client, 'documentSymbolProvider')) return null;
+		try {
+			plugin.client.sync();
+			return await plugin.client.request('textDocument/documentSymbol', { textDocument: { uri: plugin.uri } });
+		} catch {
+			return null;
+		}
+	}
+
 	/** Lists the symbols in the shown file. */
 	async goToSymbolInFile() {
 		const ctx = await this.context();

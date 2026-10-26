@@ -659,3 +659,115 @@
 .heron-status.is-ready:not(.is-busy) .heron-status-dot { background: var(--color-green); }
 .heron-status.is-busy .heron-status-dot { background: var(--color-yellow); }
 .heron-status.is-failed .heron-status-dot { background: var(--color-red); }
+
+/* ── Sidebar panels: Code outline and Code changes ───────────── */
+.heron-panel { padding: 8px 4px; font-size: var(--font-ui-small); }
+.heron-panel-title {
+	padding: 2px 10px 8px;
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+	color: var(--text-muted);
+}
+.heron-panel-empty { padding: 6px 10px; color: var(--text-faint); }
+
+.heron-outline-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 8px 2px calc(10px + var(--heron-depth, 0) * 16px);
+	border-radius: var(--radius-s);
+	white-space: nowrap;
+	overflow: hidden;
+}
+.heron-outline-row.is-active { background: var(--nav-item-background-active); color: var(--nav-item-color-active); }
+.heron-outline-name { overflow: hidden; text-overflow: ellipsis; }
+.heron-outline-detail {
+	flex-shrink: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	color: var(--text-faint);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+}
+.heron-kind {
+	flex-shrink: 0;
+	width: 16px;
+	text-align: center;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-semibold);
+}
+.heron-kind.is-type     { color: var(--color-orange); }
+.heron-kind.is-function { color: var(--color-blue); }
+.heron-kind.is-module   { color: var(--color-purple); }
+.heron-kind.is-value    { color: var(--color-cyan); }
+
+.heron-changes-repo + .heron-changes-repo { margin-top: 10px; }
+.heron-changes-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 3px 8px;
+	border-radius: var(--radius-s);
+	font-weight: var(--font-semibold);
+}
+.heron-changes-chevron { display: flex; color: var(--text-faint); }
+.heron-changes-chevron svg { width: 14px; height: 14px; }
+.heron-changes-branch {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	font-weight: normal;
+	color: var(--text-muted);
+}
+.heron-changes-count {
+	margin-left: auto;
+	padding: 0 6px;
+	border-radius: 8px;
+	background: var(--background-modifier-hover);
+	font-size: var(--font-ui-smaller);
+	font-weight: normal;
+	color: var(--text-muted);
+}
+.heron-changes-group {
+	padding: 8px 10px 2px 28px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+.heron-change {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 8px 2px 28px;
+	border-radius: var(--radius-s);
+	white-space: nowrap;
+	overflow: hidden;
+}
+.heron-change-letter { width: 12px; flex-shrink: 0; font-family: var(--font-monospace); font-size: var(--font-ui-smaller); font-weight: var(--font-semibold); }
+.heron-change-name { flex-shrink: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; }
+.heron-change-dir { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-faint); font-size: var(--font-ui-smaller); }
+.heron-change-open { margin-left: auto; flex-shrink: 0; visibility: hidden; padding: 2px; }
+.heron-change-open svg { width: 14px; height: 14px; }
+.heron-change:hover .heron-change-open, .heron-change:focus-within .heron-change-open { visibility: visible; }
+.heron-kind-modified .heron-change-letter, .heron-kind-modified .heron-change-name { color: var(--color-orange); }
+.heron-kind-added .heron-change-letter, .heron-kind-added .heron-change-name,
+.heron-kind-untracked .heron-change-letter, .heron-kind-untracked .heron-change-name { color: var(--color-green); }
+.heron-kind-deleted .heron-change-letter, .heron-kind-deleted .heron-change-name { color: var(--color-red); }
+.heron-kind-deleted .heron-change-name { text-decoration: line-through; }
+.heron-kind-renamed .heron-change-letter, .heron-kind-renamed .heron-change-name { color: var(--color-blue); }
+.heron-kind-conflicted .heron-change-letter, .heron-kind-conflicted .heron-change-name { color: var(--color-purple); }
+
+/* ── Diff tabs ───────────────────────────────────────────────── */
+.workspace-leaf-content .view-content.heron-diff-tab { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+
+/* Obsidian sets `user-select: none` on the body and re-enables it only for
+   editable areas; read-only code must stay selectable to copy from it. */
+.so-renderer .cm-content,
+.so-embed-body .cm-content {
+	-webkit-user-select: text;
+	user-select: text;
+}

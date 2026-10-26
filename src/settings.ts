@@ -26,6 +26,8 @@ export interface SourceObserverSettings {
 	 * An empty string turns that server off.
 	 */
 	serverCommands: Record<string, string>;
+	/** The Code outline and Code changes panels were added to the right sidebar once. */
+	sidebarPanelsAdded: boolean;
 }
 
 export const DEFAULT_SETTINGS: SourceObserverSettings = {
@@ -40,6 +42,7 @@ export const DEFAULT_SETTINGS: SourceObserverSettings = {
 	baseBranches: {},
 	languageServers: true,
 	serverCommands: {},
+	sidebarPanelsAdded: false,
 };
 
 export const FONT_SIZE_RANGE = { min: 10, max: 20 } as const;
@@ -79,6 +82,7 @@ export function sanitizeSettings(raw: unknown): SourceObserverSettings {
 		baseBranches: sanitizeBaseBranches(data.baseBranches),
 		languageServers: typeof data.languageServers === 'boolean' ? data.languageServers : DEFAULT_SETTINGS.languageServers,
 		serverCommands: sanitizeServerCommands(data.serverCommands),
+		sidebarPanelsAdded: data.sidebarPanelsAdded === true,
 	};
 }
 

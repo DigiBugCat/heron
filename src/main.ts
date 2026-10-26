@@ -1,4 +1,5 @@
-import { Events, Notice, Plugin, sanitizeHTMLToDom, WorkspaceLeaf } from 'obsidian';
+import { Events, Notice, Plugin, sanitizeHTMLToDom, TFile, WorkspaceLeaf } from 'obsidian';
+import * as path from 'path';
 import { registerCommands } from './commands';
 import { registerLinks } from './links/register';
 import { LspManager } from './lsp/LspManager';
@@ -9,6 +10,10 @@ import { SourceObserverView, VIEW_TYPE } from './ui/SourceObserverView';
 import { CODE_EXTENSIONS } from './ui/editor/languages';
 import { CODE_VIEW_TYPE, CodeFileView, EXTERNAL_CODE_VIEW_TYPE, ExternalCodeView, isCodeTab, vaultBasePath } from './ui/vault/codeTabs';
 import { ExplorerGit } from './ui/vault/ExplorerGit';
+import { CHANGES_VIEW_TYPE, ChangesView } from './ui/vault/ChangesView';
+import { DIFF_VIEW_TYPE, DiffState, DiffView } from './ui/vault/DiffView';
+import { OUTLINE_VIEW_TYPE, OutlineView } from './ui/vault/OutlineView';
+import type { ChangeEntry } from './git/status';
 
 /** Root plugin class — registers the view, ribbon icon, commands, links, and settings tab. */
 export default class SourceObserverPlugin extends Plugin {
@@ -19,6 +24,8 @@ export default class SourceObserverPlugin extends Plugin {
 	/** Servers whose failure was already reported, so browsing doesn't repeat the notice. */
 	private reportedFailures = new Set<string>();
 	private statusBarEl!: HTMLElement;
+	/** Git state of the repositories in the vault; null on adapters without a folder. */
+	vaultGit: ExplorerGit | null = null;
 
 	async onload() {
 		await this.loadSettings();
@@ -52,7 +59,29 @@ export default class SourceObserverPlugin extends Plugin {
 		this.registerCodeExtensions();
 
 		const base = vaultBasePath(this);
-		if (base) this.addChild(new ExplorerGit(this.app, base));
+		if (base) this.vaultGit = this.addChild(new ExplorerGit(this.app, base));
+
+		this.registerView(OUTLINE_VIEW_TYPE, (leaf) => new OutlineView(leaf));
+		this.registerView(CHANGES_VIEW_TYPE, (leaf) => new ChangesView(leaf, {
+			git: () => this.vaultGit,
+			openDiff: (repoRel, entry, newTab) => { void this.openDiff(repoRel, entry, newTab); },
+			openFile: (vaultPath, newTab) => { void this.openVaultFile(vaultPath, newTab); },
+		}));
+		this.registerView(DIFF_VIEW_TYPE, (leaf) => new DiffView(leaf, {
+			fontSize: () => this.settings.fontSize,
+			wordWrap: () => this.settings.wordWrap,
+			layout: () => this.settings.diffLayout,
+			setLayout: (layout) => {
+				this.settings.diffLayout = layout;
+				void this.saveSettings();
+			},
+			openFile: (absPath) => {
+				const rel = path.relative(vaultBasePath(this), absPath).split(path.sep).join('/');
+				void this.openVaultFile(rel, false);
+			},
+			onRepoChange: (listener) => this.vaultGit?.onChange(listener) ?? (() => undefined),
+		}));
+		this.app.workspace.onLayoutReady(() => { void this.addSidebarPanelsOnce(); });
 
 		this.statusBarEl = this.addStatusBarItem();
 		this.statusBarEl.addClass('heron-status');
@@ -89,6 +118,42 @@ export default class SourceObserverPlugin extends Plugin {
 				this.registerExtensions([ext], CODE_VIEW_TYPE);
 			} catch { /* already registered elsewhere */ }
 		}
+	}
+
+	/** Adds the outline and changes panels to the right sidebar the first time Heron runs. */
+	private async addSidebarPanelsOnce() {
+		if (this.settings.sidebarPanelsAdded) return;
+		for (const type of [OUTLINE_VIEW_TYPE, CHANGES_VIEW_TYPE]) {
+			if (!this.app.workspace.getLeavesOfType(type).length) {
+				await this.app.workspace.getRightLeaf(false)?.setViewState({ type, active: false });
+			}
+		}
+		this.settings.sidebarPanelsAdded = true;
+		await this.saveSettings();
+	}
+
+	/** Shows a sidebar panel, adding it to the right sidebar if it was closed. */
+	async revealPanel(type: string) {
+		const { workspace } = this.app;
+		let leaf = workspace.getLeavesOfType(type)[0];
+		if (!leaf) {
+			leaf = workspace.getRightLeaf(false) ?? undefined;
+			await leaf?.setViewState({ type, active: true });
+		}
+		if (leaf) await workspace.revealLeaf(leaf);
+	}
+
+	/** Opens the diff of `entry` (in the repository at vault path `repoRel`) in a tab. */
+	async openDiff(repoRel: string, entry: ChangeEntry, newTab: boolean) {
+		const state: DiffState = { root: path.join(vaultBasePath(this), repoRel), file: entry.file.path, group: entry.group };
+		const leaf = this.app.workspace.getLeaf(newTab ? 'tab' : false);
+		await leaf.setViewState({ type: DIFF_VIEW_TYPE, state: { ...state }, active: true });
+	}
+
+	/** Opens a file in the vault by its vault path. */
+	async openVaultFile(vaultPath: string, newTab: boolean) {
+		const file = this.app.vault.getAbstractFileByPath(vaultPath);
+		if (file instanceof TFile) await this.app.workspace.getLeaf(newTab ? 'tab' : false).openFile(file);
 	}
 
 	/** Shows the active code tab's language server in the status bar. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { contentLength, encodeMessage, FramingError, MessageReader } from '../src/lsp/framing';
-import { flattenDocumentSymbols, toFileLocations, workspaceSymbols } from '../src/lsp/locations';
+import { enclosingSymbols, flattenDocumentSymbols, outlineTree, toFileLocations, workspaceSymbols } from '../src/lsp/locations';
 import { parseCommand, serverForFile } from '../src/lsp/servers';
 import { mergePaths, pathFromShellOutput } from '../src/lsp/shellEnv';
 import { sanitizeSettings } from '../src/settings';
@@ -126,5 +126,36 @@ describe('NavHistory', () => {
 		h.record(1);
 		expect(h.back(5)).toBe(1);
 		expect(h.canGoBack()).toBe(false);
+	});
+});
+
+describe('outline', () => {
+	const range = (l1: number, c1: number, l2: number, c2: number) => ({ start: { line: l1, character: c1 }, end: { line: l2, character: c2 } });
+
+	it('keeps nesting, ranges and details, in document order', () => {
+		const tree = outlineTree([
+			{ name: 'later', kind: 12, range: range(20, 0, 22, 1) },
+			{ name: 'Server', kind: 5, detail: 'class', range: range(1, 0, 10, 1), selectionRange: range(1, 6, 1, 12), children: [
+				{ name: 'stop', kind: 6, range: range(6, 2, 8, 3) },
+				{ name: 'start', kind: 6, range: range(2, 2, 4, 3) },
+			] },
+		]);
+		expect(tree.map((n) => n.name)).toEqual(['Server', 'later']);
+		expect(tree[0]).toMatchObject({ kind: 'class', detail: 'class', position: { line: 1, character: 6 } });
+		expect(tree[0]?.children.map((n) => n.name)).toEqual(['start', 'stop']);
+	});
+
+	it('finds the symbols around a position, outermost first', () => {
+		const tree = outlineTree([
+			{ name: 'Server', kind: 5, range: range(1, 0, 10, 1), children: [{ name: 'start', kind: 6, range: range(2, 2, 4, 3) }] },
+		]);
+		expect(enclosingSymbols(tree, { line: 3, character: 0 }).map((n) => n.name)).toEqual(['Server', 'start']);
+		expect(enclosingSymbols(tree, { line: 9, character: 0 }).map((n) => n.name)).toEqual(['Server']);
+		expect(enclosingSymbols(tree, { line: 30, character: 0 })).toEqual([]);
+	});
+
+	it('turns flat symbol information into a flat outline', () => {
+		const tree = outlineTree([{ name: 'x', kind: 13, location: { uri: 'file:///a.py', range: range(3, 0, 3, 5) } }]);
+		expect(tree).toEqual([{ name: 'x', kind: 'variable', detail: '', position: { line: 3, character: 0 }, start: { line: 3, character: 0 }, end: { line: 3, character: 5 }, children: [] }]);
 	});
 });
