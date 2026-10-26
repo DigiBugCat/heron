@@ -36,10 +36,8 @@ export function displayCodeNoteSettings(app: App, containerEl: HTMLElement, plug
 
 	new Setting(containerEl)
 		.setName('Connect with')
-		 
 		.setDesc('Claude Code uses your Claude Code login, so no key is needed. The API needs an Anthropic API key.')
 		.addDropdown((dropdown) => dropdown
-			 
 			.addOption('cli', 'Claude Code')
 			.addOption('api', 'Anthropic API')
 			.setValue(model.transport)
@@ -62,9 +60,7 @@ export function displayCodeNoteSettings(app: App, containerEl: HTMLElement, plug
 
 	if (model.transport === 'cli') {
 		new Setting(containerEl)
-			 
 			.setName('Claude Code command')
-			 
 			.setDesc('How to run Claude Code. Heron finds it the way your terminal does.')
 			.addText((text) => {
 				// eslint-disable-next-line obsidianmd/ui/sentence-case -- the command's name
