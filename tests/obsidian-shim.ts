@@ -176,6 +176,13 @@ export class Component {
 
 export const Platform = { isMacOS: false, isDesktopApp: true, isMobile: false };
 
+/** Mod-click opens a new tab, as in Obsidian. */
+export const Keymap = {
+	isModEvent(evt?: MouseEvent | KeyboardEvent | null): false | 'tab' {
+		return evt?.ctrlKey || evt?.metaKey ? 'tab' : false;
+	},
+};
+
 export class Notice {
 	static messages: string[] = [];
 	constructor(message: string) { Notice.messages.push(message); }

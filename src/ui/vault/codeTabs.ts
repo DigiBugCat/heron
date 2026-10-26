@@ -218,9 +218,18 @@ export class CodeFileView extends FileView implements CodeTab {
 		if (!file || !this.surface.isDirty) return;
 		const text = this.surface.text();
 		this.lastSaved = text;
+		this.plugin.rewind?.expectWrite(file.path, text);
 		await this.app.vault.modify(file, text);
 		if (this.surface.text() === text) this.surface.markSaved();
 		this.warnedOutsideChange = false;
+	}
+
+	/** Shows the file as it is on disk, dropping unsaved edits (after a restore replaced them). */
+	async reloadFromDisk() {
+		if (!this.file) return;
+		this.surface.markSaved();
+		this.warnedOutsideChange = false;
+		await this.loadContent(this.file, this.surface.code.cursor(), true);
 	}
 
 	private applyMode() {

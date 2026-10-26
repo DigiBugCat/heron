@@ -2,6 +2,7 @@ import tseslint from 'typescript-eslint';
 import obsidianmd from 'eslint-plugin-obsidianmd';
 import globals from 'globals';
 import { globalIgnores } from 'eslint/config';
+import { DEFAULT_BRANDS } from 'eslint-plugin-obsidianmd/dist/lib/rules/ui/brands.js';
 
 export default tseslint.config(
 	globalIgnores([
@@ -33,6 +34,12 @@ export default tseslint.config(
 		},
 	},
 	...obsidianmd.configs.recommended,
+	{
+		// Product names keep their casing in UI text ("Show Rewind", "Claude Code").
+		rules: {
+			'obsidianmd/ui/sentence-case': ['error', { enforceCamelCaseLower: true, brands: [...DEFAULT_BRANDS, 'Claude Code', 'Rewind'] }],
+		},
+	},
 	{
 		// Tests run under Node via vitest, not inside Obsidian.
 		files: ['tests/**/*.ts'],

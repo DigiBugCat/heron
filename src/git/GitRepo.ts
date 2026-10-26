@@ -346,6 +346,35 @@ export class GitRepo {
 		}
 	}
 
+	/**
+	 * Which of `repoPaths` (root-relative files that exist) git ignores.
+	 * Tracked files are never reported. Uses `git ls-files --ignored`, since
+	 * `git check-ignore` rejects the global `--literal-pathspecs`.
+	 */
+	async ignored(repoPaths: string[]): Promise<Set<string>> {
+		const result = new Set<string>();
+		for (let i = 0; i < repoPaths.length; i += 100) {
+			const chunk = repoPaths.slice(i, i + 100);
+			try {
+				const out = await execText(this.root, ['ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--full-name', '--', ...chunk]);
+				for (const p of out.split('\0')) if (p) result.add(p);
+			} catch {
+				// Treat paths git cannot answer for as not ignored.
+			}
+		}
+		return result;
+	}
+
+	/** The subject of HEAD's latest reflog entry, e.g. "checkout: moving from a to b", or null. */
+	async reflogSubject(): Promise<string | null> {
+		try {
+			const out = await execText(this.root, ['log', '-g', '-1', '--no-color', '--format=%gs', 'HEAD']);
+			return out.trim() || null;
+		} catch {
+			return null;
+		}
+	}
+
 	/** Root-relative git path for a file under the opened folder, or null outside it. */
 	repoPath(absPath: string): string | null {
 		const rel = path.relative(this.folder, absPath);
