@@ -216,18 +216,21 @@ export class NotesController extends Component {
 		return this.addAnchored(this.anchorFor(range), fields);
 	}
 
-	/** Adds a note on the code `anchor` quotes (e.g. text that was current when a model action started). */
-	async addAnchored(anchor: TextAnchor, fields: NoteFields): Promise<MarginNote | null> {
-		const target = this.current;
-		const absPath = this.surface.absPath;
-		if (!target || !absPath) return null;
+	/**
+	 * Adds a note on the code `anchor` quotes, to `target`'s notes: by
+	 * default the shown file, but a slow model action passes the file it
+	 * started on, in case the tab has moved on to another file since.
+	 */
+	async addAnchored(anchor: TextAnchor, fields: NoteFields, target: CodeTarget | null = this.current): Promise<MarginNote | null> {
+		if (!target) return null;
 		const note = await this.host.store.add(target, {
 			...fields,
 			created: today(),
 			anchor,
-			language: path.extname(absPath).slice(1).toLowerCase(),
+			language: path.extname(target.vaultPath).slice(1).toLowerCase(),
 			extra: [],
 		}, () => this.host.origin(target));
+		if (target.vaultPath !== this.current?.vaultPath) return note;
 		await this.reload();
 		this.select(note.id);
 		return note;

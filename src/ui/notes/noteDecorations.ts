@@ -46,7 +46,8 @@ class BadgeMarker extends GutterMarker {
 	toDOM(view: EditorView): HTMLElement {
 		const first = this.marks[0];
 		const el = view.dom.ownerDocument.createElement('span');
-		el.className = `heron-note-badge heron-note-${first?.colour ?? 'yellow'}`;
+		// Without notes this is the gutter's invisible spacer.
+		el.className = first ? `heron-note-badge heron-note-${first.colour}` : 'heron-note-badge heron-note-spacer';
 		el.setAttribute('aria-label', this.marks.length === 1 ? 'Margin note' : `${this.marks.length} margin notes`);
 		if (this.marks.length > 1) el.textContent = String(this.marks.length);
 		return el;

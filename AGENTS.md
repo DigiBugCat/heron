@@ -24,6 +24,8 @@ src/commands.ts      command palette commands — IDs are stable, never rename t
 src/settings.ts      settings model, defaults, validation
 src/links/           obsidian:// links, embed and code block formats, embed processor
 src/lsp/             language servers: framing, transport, server specs, manager (no Obsidian imports)
+src/notes/           margin notes: text-quote anchoring, the Markdown note format, note paths (pure)
+src/model/           LLM client (Messages API, `claude -p`), prompts, reply parsing (no Obsidian imports)
 src/git/             runs and parses git; parsers are pure functions
 src/services/        state and change detection (RepoState, RepoWatcher, FileIndex, ContentSearch, Worktrees)
 src/ui/              the view, sidebar sections, content pane and renderers, CodeMirror extensions, menus
@@ -32,12 +34,13 @@ tests/               *.test.ts, helpers.ts (temp git repos), obsidian-shim.ts, e
 docs/images/         README screenshot
 ```
 
-Dependencies flow one way: `ui → services → git → utils`. `git/` must not import from `services/` or `ui/` (this has caused circular imports before — put I/O helpers that need `GitRepo` in `services/`). The full annotated tree is in `CONTRIBUTING.md`; update it when you add a module.
+Dependencies flow one way: `ui → services → git → utils`. `git/` must not import from `services/` or `ui/` (this has caused circular imports before — put I/O helpers that need `GitRepo` in `services/`). `notes/` and `model/` sit beside `lsp/`: pure modules that `services/` and `ui/` use, importing only from `lsp/` and `utils/`. The full annotated tree is in `CONTRIBUTING.md`; update it when you add a module.
 
 ## Non-negotiable rules
 
 - **Git stays read-only.** Only read-only git commands, always through `GitRepo` so `GLOBAL_ARGS` (`--no-optional-locks`, `--literal-pathspecs`, `core.quotepath=off`) applies. Never write to a repository, the index, refs or config. If you add a git command, add it to the list in the README's **Privacy** section.
-- **No network requests, no telemetry.** The plugin works offline. Language servers are the user's own programs; Heron only starts them (in the project root) and talks over stdio. Keep `src/lsp/` free of `obsidian` imports so it stays testable in Node.
+- **No network except model actions the user invokes; no telemetry.** The plugin works offline. The only requests are the opt-in model actions (`src/model/`), and only when the user runs one: the Anthropic API through Obsidian's `requestUrl`, or the local `claude -p` CLI. Never call a model in the background, on load or on a timer, and never cache results that could go stale silently. Language servers are the user's own programs; Heron only starts them (in the project root) and talks over stdio. Keep `src/lsp/`, `src/model/` and `src/notes/` free of `obsidian` imports so they stay testable in Node.
+- **Secrets stay out of the vault.** The API key lives in Obsidian's secret storage (`app.secretStorage`); settings keep only the secret's name.
 - **Never break saved data.** Command IDs, settings keys, the embed format (`heron` code blocks with `folder`/`file`/`lines`) and the `obsidian://heron` link format are public; keep them backward compatible.
 - **Don't commit build output** (`main.js`) or `node_modules/`.
 
@@ -52,7 +55,7 @@ Dependencies flow one way: `ui → services → git → utils`. `git/` must not 
 
 ## Obsidian API pitfalls
 
-- **Only use public API.** Check `node_modules/obsidian/obsidian.d.ts` before relying on something (for example, `MenuItem.dom` is not public). Keep `minAppVersion` (currently 1.7.2) accurate if you need newer APIs.
+- **Only use public API.** Check `node_modules/obsidian/obsidian.d.ts` before relying on something (for example, `MenuItem.dom` is not public). Keep `minAppVersion` (currently 1.11.4, for secret storage) accurate if you need newer APIs.
 - **Native menus on macOS.** Obsidian uses native menus by default on macOS, which show only the plain text of a menu item's title (`titleEl.getText()`). If you pass a `DocumentFragment` to `MenuItem.setTitle`, make sure its `textContent` still reads well (see the hidden `.so-wt-sep` separators in `ui/worktreeMenu.ts`). Native menus are not in the DOM, so they cannot be screenshotted.
 - **Popout windows.** The `obsidianmd/prefer-active-doc` lint rule rejects `document`/`window`; use `el.doc`, `view.dom.ownerDocument` or `activeDocument`.
 - **Icons.** Use Lucide icon names that have existed for a long time (e.g. `user`, `history`, `git-branch`); newer names may be missing in older Obsidian versions.

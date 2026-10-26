@@ -26,6 +26,8 @@ export interface ModelActionsHost {
 	open(controller: NotesController, loc: FileLocation): void;
 	/** Shows the Code notes panel. */
 	showPanel(): void;
+	/** Makes the client; tests pass a fake. */
+	makeClient?(settings: ModelSettings): ModelClient;
 }
 
 /** The API key from Obsidian's secret storage, or null without one. */
@@ -88,7 +90,7 @@ export class ModelActionsUi {
 			new Notice('Turn on model actions in the plugin settings first');
 			return null;
 		}
-		return modelClient(this.host.app, settings);
+		return this.host.makeClient ? this.host.makeClient(settings) : modelClient(this.host.app, settings);
 	}
 
 	/** Explains the selection and saves the answer as a model note tagged #explain. */
@@ -98,18 +100,25 @@ export class ModelActionsUi {
 			new Notice('Select code to explain');
 			return;
 		}
-		if (!controller.target) {
+		const target = controller.target;
+		if (!target) {
 			new Notice('Only code files in the vault can have notes');
 			return;
 		}
 		const model = this.client();
 		const source = actionSource(controller, this.host.base());
 		if (!model || !source) return;
-		// Anchor in the text that was explained, even if it is edited meanwhile.
+		// Anchor in the text that was explained, in the file it came from,
+		// even if the tab is edited or shows another file meanwhile.
 		const anchor = controller.anchorFor(range);
 		const body = await this.host.runs.run('Explaining selection', (signal, progress) => explainSelection(source, range, { model, signal, progress }));
 		if (body === null) return;
-		await controller.addAnchored(anchor, { colour: 'blue', author: 'model', tags: ['explain'], body });
+		try {
+			await controller.addAnchored(anchor, { colour: 'blue', author: 'model', tags: ['explain'], body }, target);
+		} catch (err) {
+			new Notice(`Cannot save the explanation: ${err instanceof Error ? err.message : String(err)}`);
+			return;
+		}
 		this.host.showPanel();
 	}
 
@@ -130,7 +139,9 @@ export class ModelActionsUi {
 			return;
 		}
 		const items = results.map((r) => ({ ...r, detail: r.reason }));
-		new LocationModal(this.host.app, items, `${items.length} similar…`, (item) => this.host.open(controller, item)).open();
+		const modal = new LocationModal(this.host.app, items, `${items.length} similar…`, (item) => this.host.open(controller, item));
+		modal.modalEl.addClass('heron-similar-modal');
+		modal.open();
 	}
 
 	/** Draws the file, or the symbol at the cursor, and saves the diagram next to the notes. */

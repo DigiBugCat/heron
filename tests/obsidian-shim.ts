@@ -176,9 +176,90 @@ export class Component {
 
 export const Platform = { isMacOS: false, isDesktopApp: true, isMobile: false };
 
+/** Records messages; a DocumentFragment message is recorded by its text. `Notice.shown` lists the live ones. */
 export class Notice {
 	static messages: string[] = [];
-	constructor(message: string) { Notice.messages.push(message); }
+	static shown: Notice[] = [];
+	noticeEl: HTMLElement;
+	constructor(message: string | DocumentFragment, public duration?: number) {
+		this.noticeEl = document.createElement('div');
+		if (typeof message === 'string') this.noticeEl.textContent = message;
+		else this.noticeEl.append(message);
+		Notice.messages.push(this.noticeEl.textContent ?? '');
+		Notice.shown.push(this);
+	}
+	setMessage(message: string) { this.noticeEl.textContent = message; return this; }
+	hide() { Notice.shown = Notice.shown.filter((n) => n !== this); }
+}
+
+export class TAbstractFile { path = ''; }
+export class TFile extends TAbstractFile {}
+export class TFolder extends TAbstractFile {}
+
+export function normalizePath(p: string): string {
+	return p.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
+}
+
+/** Tests never reach the network. */
+export function requestUrl(): Promise<never> {
+	return Promise.reject(new Error('requestUrl is not available in tests'));
+}
+
+// Obsidian's globals for the focused window's document.
+(window as unknown as Record<string, unknown>).activeDocument ??= document;
+
+/** Renders markdown as plain text, which is enough to check what was rendered. */
+export const MarkdownRenderer = {
+	render(_app: unknown, markdown: string, el: HTMLElement) {
+		el.createDiv({ cls: 'markdown-shim', text: markdown });
+		return Promise.resolve();
+	},
+};
+
+class ShimComponent<T extends HTMLElement> {
+	constructor(readonly el: T) {}
+}
+
+export class TextComponent extends ShimComponent<HTMLInputElement> {
+	inputEl = this.el;
+	private listener: ((value: string) => unknown) | null = null;
+	constructor(parent: HTMLElement) {
+		super(parent.createEl('input'));
+		this.inputEl.addEventListener('input', () => this.listener?.(this.inputEl.value));
+	}
+	setPlaceholder(text: string) { this.inputEl.placeholder = text; return this; }
+	setValue(value: string) { this.inputEl.value = value; return this; }
+	getValue() { return this.inputEl.value; }
+	setDisabled(disabled: boolean) { this.inputEl.disabled = disabled; return this; }
+	onChange(cb: (value: string) => unknown) { this.listener = cb; return this; }
+}
+
+export class ButtonComponent extends ShimComponent<HTMLButtonElement> {
+	buttonEl = this.el;
+	constructor(parent: HTMLElement) { super(parent.createEl('button')); }
+	setButtonText(text: string) { this.buttonEl.textContent = text; return this; }
+	setCta() { this.buttonEl.addClass('mod-cta'); return this; }
+	setWarning() { this.buttonEl.addClass('mod-warning'); return this; }
+	onClick(cb: (evt: MouseEvent) => unknown) { this.buttonEl.addEventListener('click', (evt) => cb(evt)); return this; }
+}
+
+/** A settings row with the components tests use. */
+export class Setting {
+	settingEl: HTMLElement;
+	nameEl: HTMLElement;
+	descEl: HTMLElement;
+	controlEl: HTMLElement;
+	constructor(containerEl: HTMLElement) {
+		this.settingEl = containerEl.createDiv({ cls: 'setting-item' });
+		this.nameEl = this.settingEl.createDiv({ cls: 'setting-item-name' });
+		this.descEl = this.settingEl.createDiv({ cls: 'setting-item-description' });
+		this.controlEl = this.settingEl.createDiv({ cls: 'setting-item-control' });
+	}
+	setName(name: string) { this.nameEl.textContent = name; return this; }
+	setDesc(desc: string) { this.descEl.textContent = desc; return this; }
+	setHeading() { this.settingEl.addClass('setting-item-heading'); return this; }
+	addText(cb: (text: TextComponent) => unknown) { cb(new TextComponent(this.controlEl)); return this; }
+	addButton(cb: (button: ButtonComponent) => unknown) { cb(new ButtonComponent(this.controlEl)); return this; }
 }
 
 export class MenuItem {
@@ -225,11 +306,19 @@ export class MarkdownRenderChild extends Component {
 }
 
 /** Records opened modals instead of showing them; `Modal.opened` lists them in order. */
+/**
+ * Records opened modals instead of showing them; `Modal.opened` lists them
+ * in order, and closed ones in `Modal.closed`. Tests call `onOpen()` themselves to render one.
+ */
 export class Modal {
 	static opened: Modal[] = [];
+	static closed: Modal[] = [];
+	modalEl: HTMLElement = document.createElement('div');
+	titleEl: HTMLElement = this.modalEl.createDiv({ cls: 'modal-title' });
+	contentEl: HTMLElement = this.modalEl.createDiv({ cls: 'modal-content' });
 	constructor(public app: unknown) {}
 	open() { Modal.opened.push(this); }
-	close() { /* nothing to close */ }
+	close() { Modal.closed.push(this); }
 }
 
 export abstract class SuggestModal<T> extends Modal {

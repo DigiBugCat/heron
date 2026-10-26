@@ -1,4 +1,3 @@
-import { Notice } from 'obsidian';
 import type SourceObserverPlugin from '../../main';
 import type { CodeNotesFeature } from './CodeNotesFeature';
 import type { NotesController } from './NotesController';
@@ -53,7 +52,7 @@ export function registerCodeNoteCommands(plugin: SourceObserverPlugin, feature: 
 		name: 'Cancel model actions',
 		checkCallback: (checking) => {
 			if (!feature.runs.active) return false;
-			if (!checking) new Notice(`Cancelling ${feature.runs.cancelAll()} model action(s)`);
+			if (!checking) feature.runs.cancelAll();
 			return true;
 		},
 	});
