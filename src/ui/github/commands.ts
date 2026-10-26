@@ -1,5 +1,5 @@
 import { Notice } from 'obsidian';
-import type SourceObserverPlugin from '../../main';
+import type HeronPlugin from '../../main';
 import type { PullRequest } from '../../github/types';
 import { copyToClipboard } from '../../utils/system';
 import type { VaultGitHubRepo } from './context';
@@ -41,7 +41,7 @@ async function pullForCurrentBranch(feature: GitHubFeature): Promise<{ repo: Vau
 }
 
 /** Registers the pull request commands. IDs are stable; do not rename them. */
-export function registerGitHubCommands(plugin: SourceObserverPlugin, feature: GitHubFeature) {
+export function registerGitHubCommands(plugin: HeronPlugin, feature: GitHubFeature) {
 	plugin.addCommand({
 		id: 'show-pull-requests',
 		name: 'Show pull requests',

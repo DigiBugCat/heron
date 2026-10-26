@@ -87,10 +87,10 @@ export function codeBlock(text: string, loc: SourceLocation): string {
 /** Ways to copy a location: a link, a live embed, or a static code block. */
 export type CopyFormat = 'link' | 'embed' | 'code';
 
-export const COPY_FORMATS: { format: CopyFormat; title: string; icon: string }[] = [
-	{ format: 'link', title: 'Copy link', icon: 'link' },
-	{ format: 'embed', title: 'Copy embed', icon: 'file-code' },
-	{ format: 'code', title: 'Copy as code block', icon: 'code' },
+export const COPY_FORMATS: { format: CopyFormat; icon: string }[] = [
+	{ format: 'link', icon: 'link' },
+	{ format: 'embed', icon: 'file-code' },
+	{ format: 'code', icon: 'code' },
 ];
 
 /** Markdown for `loc`; `text` is the code for the `code` format. */

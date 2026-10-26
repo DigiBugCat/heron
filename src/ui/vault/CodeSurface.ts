@@ -1,14 +1,16 @@
 import { App, Component, Notice } from 'obsidian';
 import * as path from 'path';
 import { GitRepo } from '../../git/GitRepo';
+import type { FileCommit } from '../../git/history';
+import type { LineRange, SourceLocation } from '../../links/sourceLink';
 import { FileLocation, OutlineNode, outlineTree, Position } from '../../lsp/locations';
 import type { LspManager, LspStatus } from '../../lsp/LspManager';
 import type { ServerAccess } from '../../lsp/requests';
 import { findRepoRoot } from '../../utils/paths';
 import { CodeIntel, CursorRequest, JumpKind } from '../pane/codeIntel';
-import { CodeRenderer } from '../pane/renderers';
+import { CodeRenderer, EditorSelectionInfo } from '../pane/renderers';
 
-export type SurfaceChange = 'content' | 'cursor' | 'dirty';
+export type SurfaceChange = 'content' | 'cursor' | 'dirty' | 'blame';
 
 export interface CodeSurfaceHost {
 	app: App;
@@ -21,15 +23,8 @@ export interface CodeSurfaceHost {
 	label(absPath: string): string;
 	/** The language server status of this surface changed. */
 	onStatus(): void;
-}
-
-/** What code navigation commands act on; the folder view and code tabs both provide it. */
-export interface CodeNavigator {
-	hasCodeIntel(): boolean;
-	goTo(kind: JumpKind): void;
-	findReferences(): void;
-	goToSymbolInFile(): void;
-	goToSymbolInProject(): void;
+	/** Shows the change `commit` made to the file, from the blame gutter; blame is inert without it. */
+	openCommit?: (repoRoot: string, commit: FileCommit) => void;
 }
 
 /**
@@ -37,7 +32,7 @@ export interface CodeNavigator {
  * Heron code tab. The tab decides which file to show; the surface finds the
  * file's repository (the language server's root) and wires up navigation.
  */
-export class CodeSurface extends Component implements CodeNavigator {
+export class CodeSurface extends Component {
 	readonly code: CodeRenderer;
 	private intel: CodeIntel;
 	private messageEl: HTMLElement;
@@ -51,7 +46,7 @@ export class CodeSurface extends Component implements CodeNavigator {
 	constructor(private parent: HTMLElement, private host: CodeSurfaceHost) {
 		super();
 		parent.addClass('heron-reading');
-		this.messageEl = parent.createDiv({ cls: 'so-message heron-code-message' });
+		this.messageEl = parent.createDiv({ cls: 'heron-message heron-code-message' });
 		this.messageEl.hide();
 		this.code = this.addChild(new CodeRenderer(parent, host.fontSize, host.wordWrap));
 		this.intel = this.addChild(new CodeIntel(host.lsp, {
@@ -65,7 +60,6 @@ export class CodeSurface extends Component implements CodeNavigator {
 				this.host.onStatus();
 				this.emit('content');
 			},
-			onHistoryChange: () => undefined,
 		}));
 	}
 
@@ -165,6 +159,43 @@ export class CodeSurface extends Component implements CodeNavigator {
 		if (this.shown) this.code.moveCursor(pos);
 	}
 
+	/** Highlights and selects `lines` (1-based, inclusive), as a link to them does. */
+	showLines(lines: LineRange): boolean {
+		return !!this.shown && this.code.showLines(lines);
+	}
+
+	/** The folder language servers and links are relative to: the file's repository, or its folder. */
+	get projectRoot(): string | null { return this.shown ? this.root : null; }
+
+	/** Opens CodeMirror's find panel; false when no file is shown. */
+	openSearch(): boolean { return !!this.shown && this.code.openSearch(); }
+
+	/** Opens CodeMirror's go-to-line prompt; false when no file is shown. */
+	goToLine(): boolean { return !!this.shown && this.code.goToLine(); }
+
+	/** The selected text, or ''. */
+	selectedText(): string { return this.shown ? this.code.selectedText() : ''; }
+
+	/** The selected whole lines and their text, or the whole file without a selection. */
+	selection(): EditorSelectionInfo | null { return this.shown ? this.code.selection() : null; }
+
+	/**
+	 * The shown file and selected lines as a link location: relative to the
+	 * file's repository (or folder), so the link names the project it is in.
+	 * `text` is the selected lines, or the whole file without a selection.
+	 */
+	linkLocation(): { loc: SourceLocation; text: string } | null {
+		const absPath = this.shown;
+		const root = this.root;
+		const selection = this.selection();
+		if (!absPath || !root || !selection) return null;
+		const file = path.relative(root, absPath).split(path.sep).join('/');
+		return { loc: { folder: root, file, lines: selection.lines }, text: selection.text };
+	}
+
+	/** True while the blame gutter is wanted. */
+	get blameShown(): boolean { return this.blameOn; }
+
 	hasCodeIntel(): boolean { return this.intel.isAvailable(); }
 
 	goTo(kind: JumpKind) { void this.intel.goTo(kind); }
@@ -183,6 +214,7 @@ export class CodeSurface extends Component implements CodeNavigator {
 		this.blameOn = !this.blameOn;
 		if (this.blameOn) void this.loadBlame(true);
 		else this.code.setBlame(null);
+		this.emit('blame');
 		return this.blameOn;
 	}
 
@@ -195,9 +227,23 @@ export class CodeSurface extends Component implements CodeNavigator {
 			if (explicit) new Notice('This file is not in a Git repository');
 			return;
 		}
+		// The folder as found in the vault; git reports the root with symlinks resolved.
+		const root = opened.repo.folder;
+		const openCommit = this.host.openCommit;
 		try {
 			const lines = await opened.repo.blame(repoPath);
-			if (this.shown === absPath && this.blameOn) this.code.setBlame(lines);
+			if (this.shown !== absPath || !this.blameOn) return;
+			this.code.setBlame(lines, openCommit && ((commit) => openCommit(root, {
+				hash: commit.hash,
+				short: commit.hash.slice(0, 7),
+				author: commit.author,
+				email: '',
+				time: commit.time,
+				subject: commit.summary,
+				status: 'M',
+				path: commit.filename || repoPath,
+				origPath: commit.previousFilename,
+			})));
 		} catch (err) {
 			if (explicit) new Notice(`Cannot show blame: ${err instanceof Error ? err.message : String(err)}`);
 		}

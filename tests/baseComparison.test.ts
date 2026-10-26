@@ -5,11 +5,14 @@ import { Component } from 'obsidian';
 import { parseNameStatus } from '../src/git/baseDiff';
 import { loadDiffSides } from '../src/git/diffSources';
 import { GitRepo } from '../src/git/GitRepo';
-import { compareWithBase } from '../src/services/BaseComparison';
+import type { ChangeEntry } from '../src/git/status';
+import { BaseComparisons, compareWithBase } from '../src/services/BaseComparison';
 import { RepoState } from '../src/services/RepoState';
-import { sanitizeSettings, setBaseBranch, MAX_BASE_BRANCHES } from '../src/settings';
-import { ChangesSection } from '../src/ui/sidebar/ChangesSection';
+import { sanitizeSettings, setBaseBranch, setBaseCompare, MAX_BASE_BRANCHES } from '../src/settings';
+import { ChangesView } from '../src/ui/vault/ChangesView';
+import { diffStateFrom, diffTitle, loadDiffState } from '../src/ui/vault/DiffView';
 import { git, makeRepo, remove, tempDir, write } from './helpers';
+import { Menu, MenuItem } from './obsidian-shim';
 
 const cleanup: string[] = [];
 const roots: Component[] = [];
@@ -148,7 +151,8 @@ describe('compareWithBase', () => {
 
 describe('base branch settings', () => {
 	it('sanitizes stored values and keeps the per-repository map bounded', () => {
-		expect(sanitizeSettings({}).compareWithBase).toBe(false);
+		expect(sanitizeSettings({}).baseCompareRepos).toEqual([]);
+		expect(sanitizeSettings({ baseCompareRepos: ['/a/.git', '/a/.git', 3, ''] }).baseCompareRepos).toEqual(['/a/.git']);
 		expect(sanitizeSettings({ baseBranches: { '/a/.git': 'main', '/b/.git': 3, '': 'x' } }).baseBranches).toEqual({ '/a/.git': 'main' });
 		let map: Record<string, string> = {};
 		for (let i = 0; i < MAX_BASE_BRANCHES + 5; i++) map = setBaseBranch(map, `/r${i}`, 'main');
@@ -157,50 +161,152 @@ describe('base branch settings', () => {
 		expect(map['/r10']).toBe('develop');
 		expect(Object.keys(map).at(-1)).toBe('/r10');
 	});
+
+	it('turns base mode on and off per repository, keeping the list bounded', () => {
+		let repos: string[] = [];
+		for (let i = 0; i < MAX_BASE_BRANCHES + 5; i++) repos = setBaseCompare(repos, `/r${i}`, true);
+		expect(repos).toHaveLength(MAX_BASE_BRANCHES);
+		repos = setBaseCompare(repos, '/r10', true);
+		expect(repos.at(-1)).toBe('/r10');
+		expect(repos.filter((r) => r === '/r10')).toHaveLength(1);
+		expect(setBaseCompare(repos, '/r10', false)).not.toContain('/r10');
+	});
 });
 
-describe('ChangesSection in base mode', () => {
-	it('shows the comparison, its base line and the toggle state, and switches back', async () => {
+describe('base comparisons per repository', () => {
+	it('computes once per status, keeps the old list while refreshing, and lets the latest request win', async () => {
 		const root = featureRepo();
-		const owner = new Component();
-		owner.load();
-		roots.push(owner);
-		const el = document.body.createDiv();
-		const onToggleBase = vi.fn();
-		const onBaseClick = vi.fn();
-		const changes = owner.addChild(new ChangesSection(el, { onOpenDiff: () => undefined, onRefresh: () => undefined, onToggleBase, onBaseClick }));
+		const repo = await open(root);
+		const status = await repo.status();
+		const updates = vi.fn();
+		const comparisons = new BaseComparisons(updates);
+
+		comparisons.update('id', repo, status, null);
+		expect(comparisons.view('id')).toEqual({ kind: 'loading', ref: null });
+		await vi.waitFor(() => expect(comparisons.view('id')?.kind).toBe('ok'));
+		const view = comparisons.view('id');
+		expect(view).toMatchObject({ kind: 'ok', ref: 'main', ahead: 2 });
+		expect(updates).toHaveBeenCalledTimes(1);
+
+		// Same inputs: nothing to do. A refresh keeps showing the last result meanwhile.
+		comparisons.update('id', repo, status, null);
+		expect(updates).toHaveBeenCalledTimes(1);
+		comparisons.update('id', repo, status, null, true);
+		expect(comparisons.view('id')).toBe(view);
+
+		// Choosing another branch shows "loading" at once; only the latest choice lands.
+		comparisons.update('id', repo, status, 'nope');
+		comparisons.update('id', repo, status, 'main');
+		expect(comparisons.view('id')).toEqual({ kind: 'loading', ref: 'main' });
+		await vi.waitFor(() => expect(comparisons.view('id')?.kind).toBe('ok'));
+		await new Promise((r) => setTimeout(r, 50));
+		expect(comparisons.view('id')).toMatchObject({ kind: 'ok', ref: 'main' });
+
+		comparisons.drop('id');
+		expect(comparisons.view('id')).toBeNull();
+	});
+});
+
+describe('Changes panel in base mode', () => {
+	/** A Changes panel over one repository, with base choices kept in memory. */
+	async function panel(root: string) {
 		const state = new RepoState();
-		state.onChange((s) => changes.update(s));
 		await state.open(root);
 		state.dispose();
 		const snapshot = state.snapshot;
 		if (snapshot.kind !== 'repo') throw new Error('not a repo');
+		const choices = { on: false, branch: null as string | null };
+		const listeners = new Set<() => void>();
+		const changed = () => { for (const l of listeners) l(); };
+		const opened: { rel: string; entry: ChangeEntry; newTab: boolean }[] = [];
+		const app = { workspace: { onLayoutReady: (cb: () => void) => cb(), on: () => ({}), getActiveFile: () => null } };
+		const view = new ChangesView({ app } as never, {
+			git: () => ({ vaultRepos: () => [{ rel: 'code/app', snapshot }], onChange: () => () => undefined }) as never,
+			base: {
+				isOn: () => choices.on,
+				setOn: (_repo, on) => { choices.on = on; changed(); },
+				branch: () => choices.branch,
+				setBranch: (_repo, branch) => { choices.branch = branch; changed(); },
+				onChange: (l) => { listeners.add(l); return () => listeners.delete(l); },
+			},
+			openDiff: (rel, entry, newTab) => opened.push({ rel, entry, newTab }),
+			openFile: () => undefined,
+		});
+		view.load();
+		await view.onOpen();
+		roots.push(view);
+		document.body.append(view.containerEl);
+		return { el: view.contentEl, choices, opened };
+	}
 
-		const toggle = el.querySelector<HTMLElement>('.so-base-toggle');
-		expect(toggle?.getAttribute('aria-pressed')).toBe('false');
-		expect(el.querySelectorAll('.so-group-header').length).toBeGreaterThan(0);
+	it('switches a repository to changes against its base branch and back', async () => {
+		const root = featureRepo();
+		const { el, choices, opened } = await panel(root);
+		const toggle = () => el.querySelector<HTMLElement>('.heron-changes-base-toggle');
+		expect(toggle()?.getAttribute('aria-pressed')).toBe('false');
+		expect(el.querySelectorAll('.heron-changes-group').length).toBeGreaterThan(0);
 
-		changes.setBase({ kind: 'loading', ref: 'main' });
-		expect(el.querySelector('.so-changes')?.textContent).toBe('Comparing…');
+		toggle()?.click();
+		expect(choices.on).toBe(true);
+		expect(el.textContent).toContain('Comparing…');
+		await vi.waitFor(() => expect(el.querySelector('.heron-changes-base')?.textContent).toBe('Againstmain2 commits'));
+		expect(toggle()?.getAttribute('aria-pressed')).toBe('true');
+		expect(el.querySelectorAll('.heron-changes-group')).toHaveLength(0);
+		const rows = Array.from(el.querySelectorAll('.heron-change'));
+		expect(rows.map((r) => r.querySelector('.heron-change-letter')?.textContent + (r.querySelector('.heron-change-name')?.textContent ?? ''))).toEqual([
+			'Medit.txt', 'Dgone.txt', 'Rnew.txt', 'Astaged.txt', 'Ms.txt', 'Uuntracked.txt',
+		]);
+		expect(el.querySelector('.heron-changes-count')?.textContent).toBe('6');
 
-		const result = await compareWithBase(snapshot.repo, 'main', snapshot.status);
-		changes.setBase(result);
-		expect(toggle?.getAttribute('aria-pressed')).toBe('true');
-		expect(el.querySelector('.so-base')?.textContent).toBe('Againstmain2 commits');
-		expect(el.querySelectorAll('.so-group-header')).toHaveLength(0);
-		expect(el.querySelectorAll('.so-change-row')).toHaveLength(6);
-		expect(Array.from(el.querySelectorAll('.so-count-badge')).map((b) => b.textContent)).toEqual(['2', '3', '1']);
+		(rows[0] as HTMLElement).click();
+		expect(opened[0]).toMatchObject({ rel: 'code/app', newTab: false, entry: { group: 'base', file: { path: 'edit.txt' }, base: { ref: 'main' } } });
 
-		el.querySelector<HTMLElement>('.so-base')?.click();
-		toggle?.click();
-		expect(onBaseClick).toHaveBeenCalledTimes(1);
-		expect(onToggleBase).toHaveBeenCalledTimes(1);
+		toggle()?.click();
+		expect(choices.on).toBe(false);
+		expect(el.querySelector('.heron-changes-base')).toBeNull();
+		expect(el.querySelectorAll('.heron-changes-group').length).toBeGreaterThan(0);
+	});
 
-		changes.setBase({ kind: 'error', ref: 'nope', message: 'Branch nope not found' });
-		expect(el.querySelector('.so-base-error')?.textContent).toBe('Branch nope not found');
+	it('picks the base branch from a menu and explains a missing one', async () => {
+		const root = featureRepo();
+		const { el, choices } = await panel(root);
+		el.querySelector<HTMLElement>('.heron-changes-base-toggle')?.click();
+		await vi.waitFor(() => expect(el.querySelector('.heron-changes-base-ahead')).not.toBeNull());
 
-		changes.setBase(null);
-		expect(el.querySelector('.so-base')?.classList.contains('so-hidden')).toBe(true);
-		expect(el.querySelectorAll('.so-group-header').length).toBeGreaterThan(0);
+		Menu.last = null;
+		el.querySelector<HTMLElement>('.heron-changes-base')?.click();
+		await vi.waitFor(() => expect(Menu.last).not.toBeNull());
+		const items = ((Menu.last as Menu | null)?.items ?? []).filter((i): i is MenuItem => i !== null);
+		expect(items.map((i) => [i.title, i.checked])).toEqual([['feature', false], ['main', true]]);
+		items[0]?.callback();
+		expect(choices.branch).toBe('feature');
+		// Against its own branch only the uncommitted work is left.
+		await vi.waitFor(() => expect(el.querySelector('.heron-changes-base')?.textContent).toBe('Againstfeature0 commits'));
+		expect(el.querySelectorAll('.heron-change')).toHaveLength(3);
+
+		choices.branch = 'nope';
+		el.querySelector<HTMLElement>('.heron-changes-base-toggle')?.click();
+		el.querySelector<HTMLElement>('.heron-changes-base-toggle')?.click();
+		await vi.waitFor(() => expect(el.querySelector('.heron-changes-base-error')?.textContent).toBe('Branch nope not found'));
+	});
+});
+
+describe('diff tabs of base changes', () => {
+	it('reads their state back and titles them', () => {
+		expect(diffStateFrom({ root: '/r', file: 'a.ts', group: 'base', baseRef: 'main' })).toEqual({ root: '/r', file: 'a.ts', group: 'base', baseRef: 'main' });
+		expect(diffStateFrom({ root: '/r', file: 'a.ts', group: 'base' })).toBeNull();
+		expect(diffStateFrom({ root: '/r', file: 'a.ts', group: 'sideways' })).toBeNull();
+		expect(diffTitle({ root: '/r', file: 'src/a.ts', group: 'base', baseRef: 'main' })).toBe('a.ts (against main)');
+		expect(diffTitle({ root: '/r', file: 'src/a.ts', group: 'staged' })).toBe('a.ts (staged)');
+	});
+
+	it('loads the file from the merge base against the working tree', async () => {
+		const root = featureRepo();
+		const repo = await open(root);
+		const loaded = await loadDiffState(repo, { root, file: 'edit.txt', group: 'base', baseRef: 'main' });
+		expect(loaded).toEqual({ sides: { original: { kind: 'text', text: 'v1\n' }, modified: { kind: 'text', text: 'v2\n' } } });
+		expect(await loadDiffState(repo, { root, file: 'keep.txt', group: 'base', baseRef: 'main' })).toEqual({ message: 'No changes', detail: 'keep.txt matches main' });
+		expect(await loadDiffState(repo, { root, file: 'edit.txt', group: 'base', baseRef: 'nope' }))
+			.toEqual({ message: 'Cannot compare with the base branch', detail: 'Branch nope not found' });
 	});
 });

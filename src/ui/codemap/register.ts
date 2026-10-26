@@ -1,10 +1,10 @@
 import { TFolder } from 'obsidian';
-import type SourceObserverPlugin from '../../main';
+import type HeronPlugin from '../../main';
 import { isCodeTab, vaultBasePath } from '../vault/codeTabs';
 import { CodeMaps } from './CodeMaps';
 
 /** Adds the code map commands and the "Generate code map" item of the file explorer's folder menu. */
-export function registerCodeMaps(plugin: SourceObserverPlugin): CodeMaps {
+export function registerCodeMaps(plugin: HeronPlugin): CodeMaps {
 	const { app } = plugin;
 	const maps = new CodeMaps({
 		app,

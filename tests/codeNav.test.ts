@@ -3,10 +3,10 @@ import { existsSync, readFileSync } from 'fs';
 import * as path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Component } from 'obsidian';
+import type { Position } from '../src/lsp/locations';
 import { answerServerRequest, LspManager } from '../src/lsp/LspManager';
 import type { LocationModal } from '../src/ui/locationModals';
-import { ContentPane } from '../src/ui/pane/ContentPane';
-import type { CodeRenderer } from '../src/ui/pane/renderers';
+import { CodeSurface } from '../src/ui/vault/CodeSurface';
 import { remove, tempDir, write } from './helpers';
 import { Modal } from './obsidian-shim';
 
@@ -109,52 +109,66 @@ describe('LspManager', () => {
 	});
 });
 
-describe('ContentPane code navigation', () => {
-	function pane(root: string, lsp: LspManager): ContentPane {
+describe('code navigation in a code tab', () => {
+	/**
+	 * A code tab without Obsidian: `open` shows another file in the same
+	 * surface, as a tab does, and records where the tab was the way
+	 * Obsidian's history keeps a tab's ephemeral state, so `back` returns there.
+	 */
+	function tab(root: string, lsp: LspManager) {
 		const owner = new Component();
 		owner.load();
 		roots.push(owner);
-		return owner.addChild(new ContentPane(document.body.createDiv(), {
-			fontSize: 13,
+		const history: { absPath: string; cursor: Position | null }[] = [];
+		const show = (absPath: string, cursor: Position | null) => surface.show(absPath, readFileSync(absPath, 'utf-8'), cursor);
+		const surface: CodeSurface = owner.addChild(new CodeSurface(document.body.createDiv(), {
 			app: {} as never,
 			lsp,
-			getRoot: () => root,
-			getFolder: () => root,
+			fontSize: 13,
+			wordWrap: false,
+			open: async (loc) => {
+				if (surface.absPath) history.push({ absPath: surface.absPath, cursor: surface.code.cursor() });
+				await show(loc.absPath, loc.position);
+				return surface;
+			},
+			label: (absPath) => path.relative(root, absPath),
+			onStatus: () => undefined,
 		}));
+		const back = async () => {
+			const previous = history.pop();
+			if (previous) await show(previous.absPath, previous.cursor);
+		};
+		return { surface, show, back, history };
 	}
 
 	/** Navigation waits up to a second for a newly started server to settle. */
 	const wait = { timeout: 5000 };
-	const cursor = (p: ContentPane) => (p as unknown as { current: CodeRenderer }).current.cursor();
 
 	it('jumps to a definition in another file and comes back', async () => {
 		const root = project();
-		const p = pane(root, manager(node()));
-		await p.showFile(path.join(root, 'a.ts'), 'a.ts');
-		await vi.waitFor(() => expect(document.querySelector('.so-lsp-status.is-ready')).not.toBeNull(), wait);
-		expect(p.hasCodeIntel()).toBe(true);
-		expect(p.canGoBack()).toBe(false);
+		const { surface, show, back, history } = tab(root, manager(node()));
+		await show(path.join(root, 'a.ts'), null);
+		await vi.waitFor(() => expect(surface.status?.kind).toBe('ready'), wait);
+		expect(surface.hasCodeIntel()).toBe(true);
+		expect(history).toHaveLength(0);
 
-		p.goTo('definition');
-		// currentPath() changes when loading starts; the label once it is rendered.
-		await vi.waitFor(() => expect(document.querySelector('.so-path-label')?.textContent).toBe('target.ts'), wait);
-		expect(cursor(p)).toEqual({ line: 2, character: 4 });
-		expect(p.canGoBack()).toBe(true);
-		expect(document.querySelector('.so-nav-back')?.hasAttribute('disabled')).toBe(false);
+		surface.goTo('definition');
+		await vi.waitFor(() => expect(surface.absPath).toBe(path.join(root, 'target.ts')), wait);
+		expect(surface.code.cursor()).toEqual({ line: 2, character: 4 });
+		expect(history).toEqual([{ absPath: path.join(root, 'a.ts'), cursor: { line: 0, character: 0 } }]);
 
-		p.goBack();
-		await vi.waitFor(() => expect(document.querySelector('.so-path-label')?.textContent).toBe('a.ts'), wait);
-		expect(cursor(p)).toEqual({ line: 0, character: 0 });
-		expect(p.canGoForward()).toBe(true);
+		await back();
+		expect(surface.absPath).toBe(path.join(root, 'a.ts'));
+		expect(surface.code.cursor()).toEqual({ line: 0, character: 0 });
 	});
 
 	it('lists references with file:line titles and line previews', async () => {
 		const root = project();
-		const p = pane(root, manager(node()));
-		await p.showFile(path.join(root, 'a.ts'), 'a.ts');
-		await vi.waitFor(() => expect(p.hasCodeIntel()).toBe(true), wait);
+		const { surface, show } = tab(root, manager(node()));
+		await show(path.join(root, 'a.ts'), null);
+		await vi.waitFor(() => expect(surface.hasCodeIntel()).toBe(true), wait);
 
-		p.findReferences();
+		surface.findReferences();
 		await vi.waitFor(() => expect(Modal.opened).toHaveLength(1), wait);
 		const modal = Modal.opened[0] as LocationModal;
 		expect(modal.getItems().map((i) => [i.title, i.detail])).toEqual([
@@ -165,11 +179,11 @@ describe('ContentPane code navigation', () => {
 
 	it('lists the symbols of the shown file', async () => {
 		const root = project();
-		const p = pane(root, manager(node()));
-		await p.showFile(path.join(root, 'a.ts'), 'a.ts');
-		await vi.waitFor(() => expect(p.hasCodeIntel()).toBe(true), wait);
+		const { surface, show } = tab(root, manager(node()));
+		await show(path.join(root, 'a.ts'), null);
+		await vi.waitFor(() => expect(surface.hasCodeIntel()).toBe(true), wait);
 
-		p.goToSymbolInFile();
+		surface.goToSymbolInFile();
 		await vi.waitFor(() => expect(Modal.opened).toHaveLength(1), wait);
 		const modal = Modal.opened[0] as LocationModal;
 		expect(modal.getItems().map((i) => [i.title, i.detail])).toEqual([
@@ -181,10 +195,10 @@ describe('ContentPane code navigation', () => {
 	it('shows no status and no navigation for files without a server', async () => {
 		const root = project();
 		write(root, 'notes.md', '# hi\n');
-		const p = pane(root, manager(node()));
-		await p.showFile(path.join(root, 'notes.md'), 'notes.md');
-		expect(document.querySelector('.so-lsp-status')?.textContent).toBe('');
-		expect(p.hasCodeIntel()).toBe(false);
+		const { surface, show } = tab(root, manager(node()));
+		await show(path.join(root, 'notes.md'), null);
+		expect(surface.status).toBeNull();
+		expect(surface.hasCodeIntel()).toBe(false);
 		expect(existsSync(path.join(root, 'notes.md'))).toBe(true);
 	});
 });

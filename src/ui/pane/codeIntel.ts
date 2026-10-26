@@ -9,7 +9,6 @@ import type { ServerAccess } from '../../lsp/requests';
 import { readViewableFile } from '../../utils/content';
 import { LatestRequest } from '../../utils/latest';
 import { LocationItem, LocationModal, WorkspaceSymbolModal } from '../locationModals';
-import { NavHistory } from './navHistory';
 import type { CodeRenderer } from './renderers';
 
 /** What the code view gives `CodeIntel` to work with. */
@@ -21,10 +20,9 @@ export interface CodeIntelHost {
 	open(loc: FileLocation): Promise<CodeRenderer | null>;
 	/** Project root that language servers are started in. */
 	root(): string | null;
-	/** Short name for a file, relative to the opened folder when inside it. */
+	/** Short name for a file in pickers, e.g. relative to the vault. */
 	label(absPath: string): string;
 	onStatus(status: LspStatus | null): void;
-	onHistoryChange(): void;
 }
 
 export type JumpKind = 'definition' | 'typeDefinition' | 'implementation' | 'declaration';
@@ -74,15 +72,13 @@ function errorText(err: unknown): string {
 
 /**
  * Language server features for the code view: hover, go to definition and
- * friends, find references, symbol search, and back/forward history. Heron
- * shows one file at a time, so cross-file jumps re-use the same editor.
+ * friends, find references and symbol search. Jumps to another file go
+ * through the host, which opens it in the same tab, so Obsidian's own back
+ * and forward history covers code navigation.
  */
 export class CodeIntel extends Component {
 	private attached: { absPath: string; code: CodeRenderer; session: LspSession } | null = null;
 	private request = new LatestRequest();
-	private history = new NavHistory<FileLocation>(
-		(a, b) => a.absPath === b.absPath && a.position.line === b.position.line,
-	);
 
 	constructor(private manager: LspManager | null, private host: CodeIntelHost) {
 		super();
@@ -126,26 +122,6 @@ export class CodeIntel extends Component {
 		this.host.onStatus(null);
 	}
 
-	canGoBack(): boolean { return this.history.canGoBack(); }
-
-	canGoForward(): boolean { return this.history.canGoForward(); }
-
-	async goBack() {
-		const current = this.currentLocation();
-		const target = current && this.history.back(current);
-		if (!target) return;
-		this.host.onHistoryChange();
-		await this.navigate(target);
-	}
-
-	async goForward() {
-		const current = this.currentLocation();
-		const target = current && this.history.forward(current);
-		if (!target) return;
-		this.host.onHistoryChange();
-		await this.navigate(target);
-	}
-
 	/** True when the shown file has a running language server. */
 	isAvailable(): boolean {
 		const shown = this.host.current();
@@ -178,10 +154,10 @@ export class CodeIntel extends Component {
 		}
 		// Several results in one file (e.g. a class and its constructor): go to the first.
 		if (locations.every((loc) => loc.absPath === first.absPath)) {
-			await this.jump(ctx.from, first);
+			await this.navigate(first);
 			return;
 		}
-		this.pick(await this.withPreviews(locations), `Choose a ${label}…`, ctx.from);
+		this.pick(await this.withPreviews(locations), `Choose a ${label}…`);
 	}
 
 	/** Lists every reference to the symbol at the cursor. */
@@ -209,7 +185,7 @@ export class CodeIntel extends Component {
 		}
 		const shown = locations.slice(0, MAX_REFERENCES);
 		const suffix = locations.length > shown.length ? ` (first ${shown.length})` : '';
-		this.pick(await this.withPreviews(shown), `${locations.length} references${suffix}`, ctx.from);
+		this.pick(await this.withPreviews(shown), `${locations.length} references${suffix}`);
 	}
 
 	/**
@@ -297,7 +273,7 @@ export class CodeIntel extends Component {
 			title: s.name,
 			detail: [s.kind, s.container, `line ${s.position.line + 1}`].filter(Boolean).join(' · '),
 		}));
-		this.pick(items, 'Go to symbol in file…', ctx.from);
+		this.pick(items, 'Go to symbol in file…');
 	}
 
 	/** Searches symbols across the project. */
@@ -321,7 +297,7 @@ export class CodeIntel extends Component {
 				return [];
 			}
 		};
-		new WorkspaceSymbolModal(app, search, (item) => { void this.jump(ctx.from, item); }).open();
+		new WorkspaceSymbolModal(app, search, (item) => { void this.navigate(item); }).open();
 	}
 
 	/** What a request needs, after waiting for a server that is still loading. */
@@ -358,27 +334,16 @@ export class CodeIntel extends Component {
 		return 'No language server for this file. Check Heron\'s settings.';
 	}
 
-	private async jump(from: FileLocation | null, to: FileLocation) {
-		if (from) {
-			this.history.record(from);
-			this.host.onHistoryChange();
-		}
-		await this.navigate(to);
-	}
-
+	/**
+	 * Shows `to`: in place when it is in the shown file, otherwise through the
+	 * host, which opens it in the tab so Obsidian's back and forward apply.
+	 */
 	private async navigate(to: FileLocation) {
 		const shown = this.host.current();
 		const code = shown?.absPath === to.absPath ? shown.code : await this.host.open(to);
 		if (!code) return;
 		if (shown?.code === code && shown.absPath === to.absPath) code.moveCursor(to.position);
 		code.editor()?.focus();
-	}
-
-	/** Where the cursor is now, for history. */
-	private currentLocation(): FileLocation | null {
-		const shown = this.host.current();
-		const position = shown?.code.cursor();
-		return shown && position ? { absPath: shown.absPath, position } : null;
 	}
 
 	/** Used by the language server client when it needs to show another file. */
@@ -389,10 +354,10 @@ export class CodeIntel extends Component {
 		return code?.editor() ?? null;
 	}
 
-	private pick(items: LocationItem[], placeholder: string, from: FileLocation) {
+	private pick(items: LocationItem[], placeholder: string) {
 		const app = this.host.app;
 		if (!app) return;
-		new LocationModal(app, items, placeholder, (item) => { void this.jump(from, item); }).open();
+		new LocationModal(app, items, placeholder, (item) => { void this.navigate(item); }).open();
 	}
 
 	/** Adds `file:line` titles and the text of each line, reading each file once. */

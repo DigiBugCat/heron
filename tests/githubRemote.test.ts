@@ -6,24 +6,24 @@ import { git, makeRepo, remove } from './helpers';
 const cleanup: string[] = [];
 afterEach(() => { while (cleanup.length) remove(cleanup.pop() ?? ''); });
 
-const COM = { host: 'github.com', owner: 'IceKhan13', name: 'obsidian-source-observer' };
+const COM = { host: 'github.com', owner: 'octocat', name: 'heron' };
 
 describe('remote URL parsing', () => {
 	it.each([
-		'https://github.com/IceKhan13/obsidian-source-observer',
-		'https://github.com/IceKhan13/obsidian-source-observer.git',
-		'https://github.com/IceKhan13/obsidian-source-observer/',
-		'https://user:secret@github.com/IceKhan13/obsidian-source-observer.git',
-		'http://github.com/IceKhan13/obsidian-source-observer',
-		'ssh://git@github.com/IceKhan13/obsidian-source-observer.git',
-		'ssh://git@ssh.github.com:443/IceKhan13/obsidian-source-observer.git',
-		'git+ssh://git@github.com/IceKhan13/obsidian-source-observer',
-		'git://github.com/IceKhan13/obsidian-source-observer.git',
-		'git@github.com:IceKhan13/obsidian-source-observer.git',
-		'git@github.com:IceKhan13/obsidian-source-observer',
-		'github.com:IceKhan13/obsidian-source-observer.git',
-		'git@github.com-work:IceKhan13/obsidian-source-observer.git',
-		'  https://GitHub.com/IceKhan13/obsidian-source-observer.git\n',
+		'https://github.com/octocat/heron',
+		'https://github.com/octocat/heron.git',
+		'https://github.com/octocat/heron/',
+		'https://user:secret@github.com/octocat/heron.git',
+		'http://github.com/octocat/heron',
+		'ssh://git@github.com/octocat/heron.git',
+		'ssh://git@ssh.github.com:443/octocat/heron.git',
+		'git+ssh://git@github.com/octocat/heron',
+		'git://github.com/octocat/heron.git',
+		'git@github.com:octocat/heron.git',
+		'git@github.com:octocat/heron',
+		'github.com:octocat/heron.git',
+		'git@github.com-work:octocat/heron.git',
+		'  https://GitHub.com/octocat/heron.git\n',
 	])('reads github.com from %s', (url) => {
 		expect(parseRemoteUrl(url)).toEqual(COM);
 	});

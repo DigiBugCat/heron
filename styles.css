@@ -1,430 +1,36 @@
 /* All colours come from Obsidian theme variables so custom themes apply. */
 
-/* ── Root layout ─────────────────────────────────────────────── */
-.so-root {
-	--so-sidebar-width: 240px;
-	display: flex;
-	height: 100%;
-	overflow: hidden;
-	padding: 0;
-	font-size: var(--font-ui-small);
-}
+/* ── File-type icon colours ──────────────────────────────────── */
+.heron-icon-folder  { color: var(--color-purple); }
+.heron-icon-ts      { color: var(--color-blue); }
+.heron-icon-js      { color: var(--color-yellow); }
+.heron-icon-py      { color: var(--color-green); }
+.heron-icon-rs      { color: var(--color-orange); }
+.heron-icon-go      { color: var(--color-cyan); }
+.heron-icon-rb      { color: var(--color-red); }
+.heron-icon-java    { color: var(--color-orange); }
+.heron-icon-c       { color: var(--color-purple); }
+.heron-icon-css     { color: var(--color-blue); }
+.heron-icon-html    { color: var(--color-red); }
+.heron-icon-vue     { color: var(--color-green); }
+.heron-icon-svelte  { color: var(--color-orange); }
+.heron-icon-json    { color: var(--color-yellow); }
+.heron-icon-md      { color: var(--text-muted); }
+.heron-icon-txt     { color: var(--text-muted); }
+.heron-icon-sh      { color: var(--color-green); }
+.heron-icon-env     { color: var(--color-red); }
+.heron-icon-img     { color: var(--color-pink); }
+.heron-icon-php     { color: var(--color-purple); }
+.heron-icon-default { color: var(--text-faint); }
 
-.so-hidden { display: none; }
-
-.so-scroll {
-	flex: 1;
-	min-height: 0;
-	overflow-y: auto;
-}
-
-/* ── Sidebar ─────────────────────────────────────────────────── */
-.so-sidebar {
-	flex: 0 0 var(--so-sidebar-width);
-	width: var(--so-sidebar-width);
-	display: flex;
-	flex-direction: column;
-	overflow: hidden;
-	background: var(--background-secondary);
-}
-
-.so-open-btn {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	margin: 8px 8px 6px;
-	padding: 4px 8px;
-	font-size: var(--font-ui-small);
-	flex-shrink: 0;
-	min-width: 0;
-	justify-content: flex-start;
-}
-.so-open-icon,
-.so-open-chevron { display: flex; flex-shrink: 0; color: var(--text-muted); }
-.so-open-icon svg,
-.so-open-chevron svg { width: 14px; height: 14px; }
-.so-open-label {
-	flex: 1;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	text-align: left;
-	font-weight: var(--font-semibold);
-}
-
-/* ── Resize handle ───────────────────────────────────────────── */
-.so-resizer {
-	flex: 0 0 4px;
-	cursor: col-resize;
-	background: transparent;
-	border-left: 1px solid var(--background-modifier-border);
-	transition: background-color 120ms ease-in-out;
-}
-.so-resizer:hover,
-.so-resizer.is-dragging,
-.so-resizer:focus-visible {
-	background: var(--interactive-accent);
-	outline: none;
-}
-
-/* ── Collapsible section ─────────────────────────────────────── */
-.so-section {
-	display: flex;
-	flex-direction: column;
-	flex: 1 1 0;
-	min-height: 0;
-}
-.so-section.so-section-collapsed { flex: 0 0 auto; }
-.so-section.so-section-collapsed .so-section-body { display: none; }
-
-.so-section-header {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	padding: 4px 6px 4px 6px;
-	border-top: 1px solid var(--background-modifier-border);
-	flex-shrink: 0;
-}
-
-.so-section-toggle {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	flex: 1;
-	min-width: 0;
-	cursor: pointer;
-	user-select: none;
-	border-radius: var(--radius-s);
-}
-.so-section-toggle:focus-visible { box-shadow: 0 0 0 2px var(--background-modifier-border-focus); outline: none; }
-.so-section-toggle:hover .so-section-title { color: var(--text-normal); }
-
-.so-section-chevron { display: flex; color: var(--text-faint); transition: transform 100ms ease-in-out; }
-.so-section-chevron svg { width: 12px; height: 12px; }
-.so-section-collapsed .so-section-chevron { transform: rotate(-90deg); }
-
-.so-section-title {
-	font-size: var(--font-ui-smaller);
-	font-weight: var(--font-bold);
-	text-transform: uppercase;
-	letter-spacing: 0.07em;
-	color: var(--text-muted);
-}
-
-.so-section-header-right {
-	display: flex;
-	align-items: center;
-	gap: 2px;
-	flex-shrink: 0;
-}
-
-.so-icon-btn {
-	width: 22px;
-	height: 22px;
-	padding: 0;
-}
-.so-icon-btn svg { width: 13px; height: 13px; }
-
-.so-section-body {
-	display: flex;
-	flex-direction: column;
+/* ── Code and diff renderers ─────────────────────────────────── */
+.heron-renderer {
 	flex: 1;
 	min-height: 0;
 	overflow: hidden;
 }
 
-.so-search-input {
-	margin: 2px 8px 4px;
-	font-size: var(--font-ui-small);
-	flex-shrink: 0;
-}
-.so-search-input.so-hidden { display: none; }
-
-.so-empty,
-.so-hint {
-	display: block;
-	padding: 4px 12px;
-	color: var(--text-muted);
-}
-.so-hint {
-	font-size: var(--font-ui-smaller);
-	font-style: italic;
-	color: var(--text-faint);
-}
-
-/* ── Count and change badges ─────────────────────────────────── */
-.so-section-counts { display: flex; gap: 3px; }
-
-.so-count-badge {
-	font-size: var(--font-ui-smaller);
-	font-weight: var(--font-bold);
-	font-family: var(--font-monospace);
-	padding: 0 5px;
-	border-radius: 8px;
-	line-height: 16px;
-}
-.so-count-badge.so-kind-added      { color: var(--color-green);  background: rgba(var(--color-green-rgb), 0.15); }
-.so-count-badge.so-kind-modified   { color: var(--color-orange); background: rgba(var(--color-orange-rgb), 0.15); }
-.so-count-badge.so-kind-deleted    { color: var(--color-red);    background: rgba(var(--color-red-rgb), 0.15); }
-.so-count-badge.so-kind-conflicted { color: var(--color-purple); background: rgba(var(--color-purple-rgb), 0.15); }
-
-.so-kind-added, .so-kind-untracked { color: var(--color-green); }
-.so-kind-modified                  { color: var(--color-orange); }
-.so-kind-deleted                   { color: var(--color-red); }
-.so-kind-renamed                   { color: var(--color-blue); }
-.so-kind-conflicted                { color: var(--color-purple); }
-
-/* ── Rows shared by tree, search results and changes ────────── */
-.so-tree-row,
-.so-change-row {
-	display: flex;
-	align-items: center;
-	gap: 5px;
-	padding-top: 2px;
-	padding-bottom: 2px;
-	padding-right: 8px;
-	margin: 0 4px;
-	cursor: pointer;
-	border-radius: var(--radius-s);
-	white-space: nowrap;
-	overflow: hidden;
-	color: var(--nav-item-color);
-}
-.so-tree-row:hover,
-.so-change-row:hover {
-	background: var(--nav-item-background-hover);
-	color: var(--nav-item-color-hover);
-}
-.so-tree-row.is-active,
-.so-change-row.is-active {
-	background: var(--nav-item-background-active);
-	color: var(--nav-item-color-active);
-}
-.so-tree-row:focus-visible,
-.so-change-row:focus-visible {
-	outline: none;
-	box-shadow: inset 0 0 0 1px var(--background-modifier-border-focus);
-}
-.so-tree:focus,
-.so-changes:focus { outline: none; }
-
-.so-row-context {
-	margin-left: 2px;
-	font-size: var(--font-ui-smaller);
-	color: var(--text-faint);
-}
-
-/* ── File tree ───────────────────────────────────────────────── */
-.so-tree { padding-bottom: 4px; }
-.so-tree-row { padding-left: var(--so-indent, 6px); }
-
-.so-tree-icon {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 16px;
-	flex-shrink: 0;
-}
-.so-tree-icon svg { width: 13px; height: 13px; }
-
-.so-tree-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-.so-tree-dir > .so-tree-label { font-weight: var(--font-semibold); }
-
-/* Git status in the tree */
-.so-tree-row.so-git-modified   > .so-tree-label { color: var(--color-orange); }
-.so-tree-row.so-git-added      > .so-tree-label,
-.so-tree-row.so-git-untracked  > .so-tree-label { color: var(--color-green); }
-.so-tree-row.so-git-renamed    > .so-tree-label { color: var(--color-blue); }
-.so-tree-row.so-git-conflicted > .so-tree-label { color: var(--color-purple); }
-.so-tree-row.so-git-dirty::after {
-	content: '';
-	flex-shrink: 0;
-	width: 5px;
-	height: 5px;
-	margin-left: auto;
-	border-radius: 50%;
-	background: var(--color-orange);
-}
-
-/* File-type icon colours */
-.so-icon-folder  { color: var(--color-purple); }
-.so-icon-ts      { color: var(--color-blue); }
-.so-icon-js      { color: var(--color-yellow); }
-.so-icon-py      { color: var(--color-green); }
-.so-icon-rs      { color: var(--color-orange); }
-.so-icon-go      { color: var(--color-cyan); }
-.so-icon-rb      { color: var(--color-red); }
-.so-icon-java    { color: var(--color-orange); }
-.so-icon-c       { color: var(--color-purple); }
-.so-icon-css     { color: var(--color-blue); }
-.so-icon-html    { color: var(--color-red); }
-.so-icon-vue     { color: var(--color-green); }
-.so-icon-svelte  { color: var(--color-orange); }
-.so-icon-json    { color: var(--color-yellow); }
-.so-icon-md      { color: var(--text-muted); }
-.so-icon-txt     { color: var(--text-muted); }
-.so-icon-sh      { color: var(--color-green); }
-.so-icon-env     { color: var(--color-red); }
-.so-icon-img     { color: var(--color-pink); }
-.so-icon-php     { color: var(--color-purple); }
-.so-icon-default { color: var(--text-faint); }
-
-/* ── Changes list ────────────────────────────────────────────── */
-.so-branch {
-	display: flex;
-	align-items: center;
-	gap: 5px;
-	padding: 2px 12px 4px;
-	color: var(--text-muted);
-	font-size: var(--font-ui-smaller);
-	flex-shrink: 0;
-	min-width: 0;
-}
-.so-branch.so-hidden { display: none; }
-.so-branch-icon { display: flex; }
-.so-branch-icon svg { width: 12px; height: 12px; }
-.so-branch-name {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-family: var(--font-monospace);
-}
-.so-branch-ab { font-family: var(--font-monospace); color: var(--text-accent); }
-
-/* Branch line as the worktree switcher */
-.so-branch.so-branch-clickable { cursor: pointer; border-radius: var(--radius-s); margin: 0 4px; padding-left: 8px; padding-right: 6px; }
-.so-branch.so-branch-clickable:hover { background: var(--nav-item-background-hover); color: var(--text-normal); }
-.so-branch.so-branch-clickable:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--background-modifier-border-focus); }
-.so-branch-worktrees {
-	display: flex;
-	align-items: center;
-	gap: 2px;
-	flex-shrink: 0;
-	padding: 0 5px;
-	border-radius: 8px;
-	font-family: var(--font-monospace);
-	color: var(--text-muted);
-	background: var(--background-modifier-hover);
-}
-.so-branch-worktrees-icon { display: flex; }
-.so-branch-worktrees-icon svg { width: 11px; height: 11px; }
-.so-branch-chevron { display: flex; flex-shrink: 0; margin-left: auto; color: var(--text-faint); }
-.so-branch-chevron svg { width: 12px; height: 12px; }
-
-/* Changes against a base branch */
-.so-icon-btn.so-base-toggle.is-active { color: var(--text-accent); }
-.so-base-label { flex-shrink: 0; color: var(--text-faint); }
-.so-base-ahead { flex-shrink: 0; font-family: var(--font-monospace); color: var(--text-accent); }
-.so-base-error { color: var(--text-error); }
-
-/* Worktree menu items: branch, location, details */
-/* Separators only show in native menus, which use the title's plain text. */
-.so-wt-sep { display: none; }
-.so-wt-name { font-family: var(--font-monospace); }
-.so-wt-tag {
-	margin-left: 6px;
-	padding: 0 5px;
-	border-radius: 8px;
-	font-family: var(--font-interface);
-	font-size: var(--font-ui-smaller);
-	color: var(--text-accent);
-	background: var(--background-modifier-hover);
-}
-.so-wt-location,
-.so-wt-details { font-size: var(--font-ui-smaller); color: var(--text-muted); }
-.so-wt-details { color: var(--text-faint); }
-
-.so-changes { padding-bottom: 6px; }
-
-.so-group-header {
-	display: flex;
-	justify-content: space-between;
-	padding: 6px 12px 2px;
-	font-size: var(--font-ui-smaller);
-	font-weight: var(--font-semibold);
-	color: var(--text-faint);
-}
-
-.so-change-row { padding-left: 8px; }
-
-.so-change-badge {
-	font-size: var(--font-ui-smaller);
-	font-weight: var(--font-bold);
-	font-family: var(--font-monospace);
-	width: 12px;
-	text-align: center;
-	flex-shrink: 0;
-}
-
-.so-change-file {
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-.so-change-file-deleted { text-decoration: line-through; color: var(--text-muted); }
-
-/* ── Content pane ────────────────────────────────────────────── */
-.so-main {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-	overflow: hidden;
-	min-width: 0;
-}
-
-.so-pane-header {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 0 6px 0 12px;
-	min-height: 28px;
-	border-bottom: 1px solid var(--background-modifier-border);
-	background: var(--background-secondary);
-	flex-shrink: 0;
-}
-.so-pane-header.so-pane-loading { opacity: 0.6; }
-
-.so-path-label {
-	flex: 1;
-	min-width: 0;
-	font-size: var(--font-ui-smaller);
-	font-family: var(--font-monospace);
-	color: var(--text-muted);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.so-pane-stats {
-	display: flex;
-	gap: 6px;
-	font-size: var(--font-ui-smaller);
-	font-family: var(--font-monospace);
-}
-.so-stat-added   { color: var(--color-green); }
-.so-stat-removed { color: var(--color-red); }
-
-.so-pane-actions { display: flex; }
-.so-pane-action svg { width: 14px; height: 14px; }
-
-.so-pane {
-	flex: 1;
-	min-height: 0;
-	overflow: hidden;
-	display: flex;
-	flex-direction: column;
-}
-
-.so-renderer {
-	flex: 1;
-	min-height: 0;
-	overflow: hidden;
-}
-
-.so-message {
+.heron-message {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -434,87 +40,23 @@
 	color: var(--text-muted);
 	text-align: center;
 }
-.so-message-icon { color: var(--text-faint); }
-.so-message-icon svg { width: 32px; height: 32px; }
-.so-message-detail { font-size: var(--font-ui-smaller); color: var(--text-faint); }
+.heron-message-icon { color: var(--text-faint); }
+.heron-message-icon svg { width: 32px; height: 32px; }
+.heron-message-detail { font-size: var(--font-ui-smaller); color: var(--text-faint); }
 
-/* ── Search in files ─────────────────────────────────────────── */
-.so-search-row {
-	display: flex;
-	align-items: center;
-	gap: 2px;
-	margin: 2px 8px 4px;
-	flex-shrink: 0;
-}
-.so-search-row .so-search-input { flex: 1; min-width: 0; margin: 0; }
-.so-search-options { display: flex; flex-shrink: 0; }
-.so-search-option {
-	padding: 2px 4px;
-	font-family: var(--font-monospace);
-	font-size: var(--font-ui-smaller);
-	line-height: 1;
-}
-.so-search-option.is-active {
-	color: var(--text-on-accent);
-	background: var(--interactive-accent);
-}
-.so-search-summary.so-hidden { display: none; }
-.so-search-summary.so-search-error { color: var(--text-error); font-style: normal; }
-.so-search-results.so-loading { opacity: 0.6; }
 
-.so-search-chevron { display: flex; color: var(--text-faint); transition: transform 100ms ease-in-out; }
-.so-search-chevron svg { width: 12px; height: 12px; }
-.so-search-file.is-collapsed .so-search-chevron { transform: rotate(-90deg); }
-.so-search-file.is-collapsed .so-search-lines { display: none; }
-.so-search-count {
-	margin-left: auto;
-	padding: 0 5px;
-	border-radius: 8px;
-	font-size: var(--font-ui-smaller);
-	color: var(--text-muted);
-	background: var(--background-modifier-hover);
+/* Side-by-side diff: the merge view scrolls as a whole, with old and new aligned. */
+.heron-diff-split .cm-mergeView { height: 100%; }
+/* `clip` rather than the library's `hidden`, so the find panel can stay sticky. */
+.heron-diff-split .cm-mergeViewEditor { overflow: clip; }
+.heron-diff-split .cm-mergeViewEditor + .cm-mergeViewEditor {
+	border-left: 1px solid var(--background-modifier-border);
 }
-.so-search-line { padding-left: 28px; font-family: var(--font-monospace); font-size: var(--font-ui-smaller); }
-.so-search-line-number { flex-shrink: 0; min-width: 3ch; text-align: right; color: var(--text-faint); }
-.so-search-line-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
-.so-search-match {
-	color: inherit;
-	background: var(--text-highlight-bg);
-	border-radius: 2px;
-}
-
-/* ── File history ────────────────────────────────────────────── */
-.so-history-file {
-	display: flex;
-	align-items: center;
-	gap: 5px;
-	padding: 2px 12px 4px;
-	color: var(--text-muted);
-	font-size: var(--font-ui-smaller);
-	flex-shrink: 0;
-	min-width: 0;
-}
-.so-history-file.so-hidden { display: none; }
-.so-history-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.so-commit-row {
-	flex-direction: column;
-	align-items: stretch;
-	gap: 0;
-	padding-left: 12px;
-}
-.so-commit-subject,
-.so-commit-meta {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-.so-commit-meta { font-size: var(--font-ui-smaller); color: var(--text-faint); }
-.so-commit-hash { font-family: var(--font-monospace); }
 
 /* ── Blame gutter ────────────────────────────────────────────── */
-.so-blame-gutter { border-right: 1px solid var(--background-modifier-border); }
-.so-blame-gutter .cm-gutterElement { cursor: pointer; }
-.so-blame-entry {
+.heron-blame-gutter { border-right: 1px solid var(--background-modifier-border); }
+.heron-blame-gutter .cm-gutterElement { cursor: pointer; }
+.heron-blame-entry {
 	display: flex;
 	gap: 6px;
 	width: 27ch;
@@ -523,31 +65,15 @@
 	color: var(--text-muted);
 	white-space: nowrap;
 }
-.so-blame-start { border-top: 1px solid var(--background-modifier-border); }
-.cm-gutterElement:first-child .so-blame-start { border-top: none; }
-.so-blame-author { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.so-blame-age { flex-shrink: 0; width: 4ch; text-align: right; color: var(--text-faint); font-variant-numeric: tabular-nums; }
-.so-blame-uncommitted { color: var(--text-faint); font-style: italic; }
-.so-pane-action.so-blame-toggle.is-active { color: var(--text-accent); }
+.heron-blame-start { border-top: 1px solid var(--background-modifier-border); }
+.cm-gutterElement:first-child .heron-blame-start { border-top: none; }
+.heron-blame-author { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.heron-blame-age { flex-shrink: 0; width: 4ch; text-align: right; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.heron-blame-uncommitted { color: var(--text-faint); font-style: italic; }
 
 /* ── Code navigation ──────────────────────────────────────────── */
-.so-pane-action[disabled] { opacity: 0.35; pointer-events: none; }
-
-/* Which language server serves the file; muted while starting or busy, red when unavailable. */
-.so-lsp-status {
-	max-width: 40%;
-	font-size: var(--font-ui-smaller);
-	color: var(--text-faint);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-.so-lsp-status:empty { display: none; }
-.so-lsp-status.is-ready:not(.is-busy) { color: var(--text-muted); }
-.so-lsp-status.is-failed { color: var(--text-error); }
-
 /* Hover documentation from the language server. */
-.so-code-view .cm-tooltip.cm-tooltip-hover {
+.heron-code-view .cm-tooltip.cm-tooltip-hover {
 	max-width: min(640px, 80vw);
 	max-height: 320px;
 	overflow: auto;
@@ -560,13 +86,13 @@
 	font-family: var(--font-interface);
 	font-size: var(--font-ui-small);
 }
-.so-code-view .cm-lsp-documentation pre,
-.so-code-view .cm-lsp-documentation code { font-family: var(--font-monospace); font-size: var(--font-ui-smaller); }
-.so-code-view .cm-lsp-documentation pre { white-space: pre-wrap; }
+.heron-code-view .cm-lsp-documentation pre,
+.heron-code-view .cm-lsp-documentation code { font-family: var(--font-monospace); font-size: var(--font-ui-smaller); }
+.heron-code-view .cm-lsp-documentation pre { white-space: pre-wrap; }
 
-/* References, definitions and symbols pickers. */
-.so-location-title { font-family: var(--font-monospace); font-size: var(--font-ui-small); }
-.so-location-detail {
+/* References, definitions, symbols and search results pickers. */
+.heron-location-title { font-family: var(--font-monospace); font-size: var(--font-ui-small); }
+.heron-location-detail {
 	font-size: var(--font-ui-smaller);
 	color: var(--text-muted);
 	white-space: nowrap;
@@ -574,25 +100,36 @@
 	text-overflow: ellipsis;
 }
 
-/* ── Folder path modal ───────────────────────────────────────── */
-.so-path-input { width: 100%; min-width: 260px; font-family: var(--font-monospace); }
-
-/* Side-by-side diff: the merge view scrolls as a whole, with old and new aligned. */
-.so-diff-split .cm-mergeView { height: 100%; }
-/* `clip` rather than the library's `hidden`, so the find panel can stay sticky. */
-.so-diff-split .cm-mergeViewEditor { overflow: clip; }
-.so-diff-split .cm-mergeViewEditor + .cm-mergeViewEditor {
-	border-left: 1px solid var(--background-modifier-border);
+/* ── Search in code ──────────────────────────────────────────── */
+.heron-code-search .prompt-input-container { display: flex; align-items: center; }
+.heron-code-search .prompt-input-container .prompt-input { flex: 1; min-width: 0; }
+.heron-code-search-options { display: flex; flex-shrink: 0; gap: 2px; padding-right: 8px; }
+.heron-code-search-option {
+	min-width: 26px;
+	padding: 2px 4px;
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
 }
+.heron-code-search-option.is-active { color: var(--text-on-accent); background: var(--interactive-accent); }
+.heron-code-search-line { font-family: var(--font-monospace); }
+.heron-code-search-match { background: rgba(var(--color-yellow-rgb), 0.35); color: inherit; border-radius: 2px; }
+.heron-code-search-status {
+	padding: 4px 12px;
+	border-top: 1px solid var(--background-modifier-border);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+.heron-code-search-status.is-empty { display: none; }
 
 /* ── Code embeds in notes ───────────────────────────────────────── */
-.so-embed {
+.heron-embed {
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--code-radius, var(--radius-s));
 	overflow: hidden;
 	background: var(--code-background);
 }
-.so-embed-header {
+.heron-embed-header {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -604,22 +141,22 @@
 	font-size: var(--font-ui-smaller);
 	cursor: pointer;
 }
-.so-embed-header:hover,
-.so-embed-header:focus-visible { color: var(--text-accent); }
-.so-embed-icon { display: flex; }
-.so-embed-icon svg { width: 14px; height: 14px; }
-.so-embed-label {
+.heron-embed-header:hover,
+.heron-embed-header:focus-visible { color: var(--text-accent); }
+.heron-embed-icon { display: flex; }
+.heron-embed-icon svg { width: 14px; height: 14px; }
+.heron-embed-label {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
-.so-embed-message {
+.heron-embed-message {
 	padding: 8px 12px;
 	color: var(--text-muted);
 	font-size: var(--font-ui-small);
 }
-.so-embed-error { color: var(--text-error); }
+.heron-embed-error { color: var(--text-error); }
 
 /* ── Code tabs (code files in the vault) ─────────────────────── */
 .workspace-leaf-content .view-content.heron-code-tab {
@@ -628,7 +165,7 @@
 	padding: 0;
 	overflow: hidden;
 }
-.heron-code-tab .so-code-view .cm-editor { height: 100%; }
+.heron-code-tab .heron-code-view .cm-editor { height: 100%; }
 .heron-code-message { flex: 1; }
 .view-action.is-active { color: var(--text-accent); }
 
@@ -761,13 +298,33 @@
 .heron-kind-renamed .heron-change-letter, .heron-kind-renamed .heron-change-name { color: var(--color-blue); }
 .heron-kind-conflicted .heron-change-letter, .heron-kind-conflicted .heron-change-name { color: var(--color-purple); }
 
+/* Changes against a base branch: the header toggle and the "Against <branch>" line. */
+.heron-changes-base-toggle { flex-shrink: 0; padding: 2px; }
+.heron-changes-base-toggle svg { width: 14px; height: 14px; }
+.heron-changes-base-toggle.is-active { color: var(--text-accent); }
+.heron-changes-base {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 8px 2px 28px;
+	border-radius: var(--radius-s);
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	white-space: nowrap;
+}
+.heron-changes-base-icon { display: flex; color: var(--text-faint); }
+.heron-changes-base-icon svg { width: 12px; height: 12px; }
+.heron-changes-base-ref { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-monospace); color: var(--text-normal); }
+.heron-changes-base-ahead { color: var(--text-faint); }
+.heron-changes-base-error { color: var(--text-error); }
+
 /* ── Diff tabs ───────────────────────────────────────────────── */
 .workspace-leaf-content .view-content.heron-diff-tab { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 
 /* Obsidian sets `user-select: none` on the body and re-enables it only for
    editable areas; read-only code must stay selectable to copy from it. */
-.so-renderer .cm-content,
-.so-embed-body .cm-content {
+.heron-renderer .cm-content,
+.heron-embed-body .cm-content {
 	-webkit-user-select: text;
 	user-select: text;
 }
@@ -838,6 +395,11 @@
 .heron-rewind-files { padding-left: 20px; }
 .heron-rewind-file.is-active { background: var(--nav-item-background-active); }
 .heron-rewind-more-files { padding: 2px 10px; color: var(--text-faint); font-size: var(--font-ui-smaller); }
+.heron-rewind-commit { display: block; padding: 3px 8px; border-radius: var(--radius-s); }
+.heron-rewind-commit + .heron-rewind-commit { margin-top: 2px; }
+.heron-rewind-commit-subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.heron-rewind-commit-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-faint); font-size: var(--font-ui-smaller); }
+.heron-rewind-commit-hash { font-family: var(--font-monospace); }
 .heron-rewind-tab .heron-rewind-body { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .heron-rewind-banner {
 	display: flex;
@@ -1032,4 +594,4 @@
 
 /* ── Model actions ────────────────────────────────────────────── */
 .heron-model-cancel { margin-left: 8px; }
-.heron-similar-modal .so-location-detail { white-space: normal; }
+.heron-similar-modal .heron-location-detail { white-space: normal; }

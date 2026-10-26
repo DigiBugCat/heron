@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { GitRepo } from '../src/git/GitRepo';
-import { compileQuery, ContentSearch, makePreview, matchRanges, SearchQuery } from '../src/services/ContentSearch';
-import { FileIndex } from '../src/services/FileIndex';
-import { makeRepo, remove, tempDir, write } from './helpers';
+import { compileQuery, ContentSearch, makePreview, matchRanges, MAX_SEARCH_MATCHES, SearchQuery } from '../src/services/ContentSearch';
+import { makeRepo, remove, write } from './helpers';
 
 const cleanup: string[] = [];
 afterEach(() => { while (cleanup.length) remove(cleanup.pop() ?? ''); });
@@ -35,41 +34,65 @@ describe('query matching', () => {
 });
 
 describe('ContentSearch', () => {
-	it('searches a plain folder through the file index, in index order, skipping hidden and binary files', async () => {
-		const dir = tempDir();
-		cleanup.push(dir);
-		write(dir, 'a.txt', 'one needle\nnone\nneedle two\n');
-		write(dir, 'sub/b.md', 'Needle\n');
-		write(dir, '.hidden/c.txt', 'needle\n');
-		write(dir, 'bin.dat', Buffer.from([0x6e, 0x65, 0x65, 0x64, 0x6c, 0x65, 0]));
-		const index = new FileIndex();
-		index.reset(dir, null);
-		const search = new ContentSearch(index);
+	async function open(folder: string): Promise<GitRepo> {
+		const opened = await GitRepo.open(folder);
+		if (opened.kind !== 'repo') throw new Error('not a repo');
+		return opened.repo;
+	}
 
-		const results = await search.run(dir, null, q('needle'), { showHidden: false });
-		expect(results.files.map((f) => [f.rel, f.lines.map((l) => l.line)])).toEqual([['a.txt', [1, 3]], ['sub/b.md', [1]]]);
-		expect(results.matchCount).toBe(3);
-		expect(results.files[0]?.lines[0]?.ranges).toEqual([[4, 10]]);
-
-		const withHidden = await search.run(dir, null, q('needle', { caseSensitive: true }), { showHidden: true });
-		expect(withHidden.files.map((f) => f.rel).sort()).toEqual(['.hidden/c.txt', 'a.txt']);
-	});
-
-	it('uses git grep in a repository, with folder-relative paths and regex fallback-safe highlighting', async () => {
+	it('uses git grep, with folder-relative paths and highlighting from the JS expression', async () => {
 		const root = makeRepo({ 'src/a.ts': 'const value = 42;\n', 'README.md': 'value\n' });
 		cleanup.push(root);
-		const opened = await GitRepo.open(`${root}/src`);
-		if (opened.kind !== 'repo') throw new Error('not a repo');
-		const search = new ContentSearch(new FileIndex());
-
-		const results = await search.run(`${root}/src`, opened.repo, q('val\\w+', { regex: true }), { showHidden: false });
+		const repo = await open(`${root}/src`);
+		const results = await new ContentSearch().run(repo, q('val\\w+', { regex: true }));
 		expect(results.files).toHaveLength(1);
 		expect(results.files[0]?.rel).toBe('a.ts');
 		expect(results.files[0]?.lines[0]).toMatchObject({ line: 1, preview: 'const value = 42;', ranges: [[6, 11]] });
 	});
 
+	it('includes untracked files and honours case', async () => {
+		const root = makeRepo({ 'a.txt': 'one needle\nnone\nNeedle two\n' });
+		cleanup.push(root);
+		write(root, 'new.txt', 'needle\n');
+		const repo = await open(root);
+		const results = await new ContentSearch().run(repo, q('needle', { caseSensitive: true }));
+		expect(results.files.map((f) => [f.rel, f.lines.map((l) => l.line)])).toEqual([['a.txt', [1]], ['new.txt', [1]]]);
+		expect(results.matchCount).toBe(2);
+	});
+
 	it('rejects invalid regular expressions before running git', async () => {
-		const search = new ContentSearch(new FileIndex());
-		await expect(search.run('/nowhere', null, q('[', { regex: true }), { showHidden: false })).rejects.toThrow(SyntaxError);
+		const root = makeRepo({ 'a.txt': 'a\n' });
+		cleanup.push(root);
+		const repo = await open(root);
+		await expect(new ContentSearch().run(repo, q('[', { regex: true }))).rejects.toThrow(SyntaxError);
+		await expect(new ContentSearch().runAll([{ repo }], q('(', { regex: true }))).rejects.toThrow(SyntaxError);
+	});
+
+	it('searches repositories in order and caps the total across them', async () => {
+		const many = (n: number) => Array.from({ length: n }, (_, i) => `needle ${i}`).join('\n') + '\n';
+		const first = makeRepo({ 'a.txt': many(1500) });
+		const second = makeRepo({ 'b.txt': many(1000), 'c.txt': 'needle\n' });
+		const empty = makeRepo({ 'd.txt': 'nothing\n' });
+		cleanup.push(first, second, empty);
+		const targets = [{ repo: await open(empty), name: 'empty' }, { repo: await open(first), name: 'first' }, { repo: await open(second), name: 'second' }];
+
+		const { hits, truncated } = await new ContentSearch().runAll(targets, q('needle'));
+		expect(hits).toHaveLength(MAX_SEARCH_MATCHES);
+		expect(truncated).toBe(true);
+		expect(hits.slice(0, 1500).every((h) => h.target.name === 'first' && h.rel === 'a.txt')).toBe(true);
+		expect(hits[1500]).toMatchObject({ target: { name: 'second' }, rel: 'b.txt', match: { line: 1 } });
+
+		const few = await new ContentSearch().runAll(targets.slice(2), q('needle 99'));
+		expect(few.truncated).toBe(false);
+		expect(few.hits.map((h) => `${h.rel}:${h.match.line}`)).toEqual(['b.txt:100', ...Array.from({ length: 10 }, (_, i) => `b.txt:${991 + i}`)]);
+	});
+
+	it('stops when cancelled', async () => {
+		const root = makeRepo({ 'a.txt': 'needle\n' });
+		cleanup.push(root);
+		const repo = await open(root);
+		const abort = new AbortController();
+		abort.abort();
+		await expect(new ContentSearch().runAll([{ repo }], q('needle'), abort.signal)).rejects.toThrow('Search cancelled');
 	});
 });

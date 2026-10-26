@@ -1,5 +1,5 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
-import type SourceObserverPlugin from '../main';
+import type HeronPlugin from '../main';
 import { BUILTIN_SERVERS } from '../lsp/servers';
 import { DEFAULT_SETTINGS, DiffLayout, FONT_SIZE_RANGE, sanitizeVaultFolder } from '../settings';
 import { renderRewindSettings } from './vault/rewind/settingsSection';
@@ -7,8 +7,8 @@ import { renderGitHubSettings } from './github/settings';
 import { displayCodeNoteSettings } from './notes/settingsSection';
 
 /** Obsidian settings tab for Heron. */
-export class SourceObserverSettingTab extends PluginSettingTab {
-	constructor(app: App, private plugin: SourceObserverPlugin) {
+export class HeronSettingTab extends PluginSettingTab {
+	constructor(app: App, private plugin: HeronPlugin) {
 		super(app, plugin);
 	}
 
@@ -56,18 +56,6 @@ export class SourceObserverSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Show hidden files')
-			.setDesc('Show files and folders whose names start with a dot.')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(settings.showHidden)
-					.onChange(async (value) => {
-						settings.showHidden = value;
-						await this.plugin.saveSettings();
-					}),
-			);
-
-		new Setting(containerEl)
 			.setName('Open code files for')
 			.setDesc('Reading opens code read-only. Switch a tab to editing with the pencil in its header. Edits are saved when you press the save shortcut or leave the tab.')
 			.addDropdown((dropdown) =>
@@ -98,7 +86,7 @@ export class SourceObserverSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Use language servers')
-			.setDesc('Go to definition, hover, references and symbol search. Servers are programs you install; Heron starts them in the opened project and stops them when you switch projects.')
+			.setDesc('Go to definition, hover, references and symbol search in code tabs. Servers are programs you install; Heron starts each one in the repository of the file you open.')
 			.addToggle((toggle) =>
 				toggle.setValue(settings.languageServers).onChange(async (value) => {
 					settings.languageServers = value;
@@ -147,22 +135,5 @@ export class SourceObserverSettingTab extends PluginSettingTab {
 		renderRewindSettings(containerEl, this.plugin);
 		renderGitHubSettings(containerEl, this.plugin.github);
 		displayCodeNoteSettings(this.app, containerEl, this.plugin, () => this.display());
-
-		new Setting(containerEl).setName('Folders').setHeading();
-
-		const count = settings.recentFolders.length;
-		new Setting(containerEl)
-			.setName('Recent folders')
-			.setDesc(count ? `${count} folder${count === 1 ? '' : 's'} remembered.` : 'No folders remembered.')
-			.addButton((btn) =>
-				btn
-					.setButtonText('Clear')
-					.setDisabled(count === 0)
-					.onClick(async () => {
-						settings.recentFolders = [];
-						await this.plugin.saveSettings();
-						this.display();
-					}),
-			);
 	}
 }

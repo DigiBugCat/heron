@@ -8,9 +8,9 @@ export interface LocationItem extends FileLocation {
 }
 
 function renderItem(item: LocationItem, el: HTMLElement) {
-	el.addClass('so-location-item');
-	el.createDiv({ cls: 'so-location-title', text: item.title });
-	if (item.detail) el.createDiv({ cls: 'so-location-detail', text: item.detail });
+	el.addClass('heron-location-item');
+	el.createDiv({ cls: 'heron-location-title', text: item.title });
+	if (item.detail) el.createDiv({ cls: 'heron-location-detail', text: item.detail });
 }
 
 /** Fuzzy-filtered list of known locations: references, several definitions, or a file's symbols. */

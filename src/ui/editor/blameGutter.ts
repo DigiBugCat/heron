@@ -19,19 +19,19 @@ class BlameMarker extends GutterMarker {
 
 	toDOM(view: EditorView) {
 		const el = view.dom.ownerDocument.createElement('div');
-		el.className = 'so-blame-entry';
+		el.className = 'heron-blame-entry';
 		if (!this.first) return el;
-		el.addClass('so-blame-start');
+		el.addClass('heron-blame-start');
 		const { commit } = this;
 		if (commit.uncommitted) {
-			el.addClass('so-blame-uncommitted');
+			el.addClass('heron-blame-uncommitted');
 			el.setText('Not committed yet');
 			el.title = 'Changed in the working tree or index';
 			return el;
 		}
-		el.createSpan({ cls: 'so-blame-author', text: commit.author });
+		el.createSpan({ cls: 'heron-blame-author', text: commit.author });
 		// A fixed-width age column gives every author name the same room.
-		el.createSpan({ cls: 'so-blame-age', text: formatShortAge(commit.time, this.now) });
+		el.createSpan({ cls: 'heron-blame-age', text: formatShortAge(commit.time, this.now) });
 		el.title = `${commit.hash.slice(0, 7)} · ${commit.author} · ${formatRelativeTime(commit.time, this.now)}, ${formatDateTime(commit.time)}\n${commit.summary}`;
 		return el;
 	}
@@ -41,7 +41,7 @@ class BlameMarker extends GutterMarker {
 const spacer = new (class extends GutterMarker {
 	toDOM(view: EditorView) {
 		const el = view.dom.ownerDocument.createElement('div');
-		el.className = 'so-blame-entry';
+		el.className = 'heron-blame-entry';
 		return el;
 	}
 })();
@@ -55,7 +55,7 @@ export function blameGutter(lines: BlameCommit[], onOpen?: (commit: BlameCommit)
 	const now = Date.now() / 1000;
 	const markers = lines.map((commit, i) => new BlameMarker(commit, i === 0 || lines[i - 1] !== commit, now));
 	return gutter({
-		class: 'so-blame-gutter',
+		class: 'heron-blame-gutter',
 		initialSpacer: () => spacer,
 		lineMarker: (view, block) => markers[view.state.doc.lineAt(block.from).number - 1] ?? null,
 		domEventHandlers: {

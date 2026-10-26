@@ -11,12 +11,12 @@ describe('selecting read-only code (regression: selections were invisible inside
 		owner.load();
 		const code = owner.addChild(new CodeRenderer(document.body.createDiv(), 13));
 		code.setDocument('const a = 1;\nconst b = 2;\n', 'a.ts', false);
-		expect(document.querySelector('.so-code-view .cm-selectionLayer')).not.toBeNull();
+		expect(document.querySelector('.heron-code-view .cm-selectionLayer')).not.toBeNull();
 		owner.unload();
 	});
 
 	it('re-enables text selection that Obsidian turns off for non-editable content', () => {
 		const css = readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf-8');
-		expect(css).toMatch(/\.so-renderer \.cm-content,\s*\.so-embed-body \.cm-content \{[^}]*user-select: text;/);
+		expect(css).toMatch(/\.heron-renderer \.cm-content,\s*\.heron-embed-body \.cm-content \{[^}]*user-select: text;/);
 	});
 });

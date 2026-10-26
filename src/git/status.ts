@@ -179,30 +179,6 @@ export function primaryKind(file: ChangedFile): ChangeKind {
 	return 'modified';
 }
 
-export interface ChangeCounts {
-	added: number;
-	modified: number;
-	deleted: number;
-	conflicted: number;
-}
-
-/** Counts each file exactly once, by its primary kind. */
-export function countChanges(files: ChangedFile[]): ChangeCounts {
-	return countKinds(files.map(primaryKind));
-}
-
-/** Counts change kinds for the header badges; untracked files count as added. */
-export function countKinds(kinds: ChangeKind[]): ChangeCounts {
-	const counts: ChangeCounts = { added: 0, modified: 0, deleted: 0, conflicted: 0 };
-	for (const kind of kinds) {
-		if (kind === 'added' || kind === 'untracked') counts.added++;
-		else if (kind === 'deleted') counts.deleted++;
-		else if (kind === 'conflicted') counts.conflicted++;
-		else counts.modified++;
-	}
-	return counts;
-}
-
 /** Badge letter for a change kind. */
 export function badgeFor(kind: ChangeKind): string {
 	switch (kind) {
