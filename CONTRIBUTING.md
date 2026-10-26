@@ -79,7 +79,9 @@ src/
     ContentSearch.ts          search in files: git grep, or reading indexed files; match previews
     Worktrees.ts              worktree summaries (changes, ahead/behind) and folder mapping
     CodeNotesStore.ts         reads and writes margin notes through a small vault interface
-    modelActions.ts           explain, find similar and diagram: gather context, ask the model
+    actionSource.ts           what model actions work on (file, server, grep) and shared helpers
+    modelActions.ts           explain and find similar: gather context, ask the model
+    modelDiagram.ts           diagrams from the outline, imports and call hierarchy
   ui/
     SourceObserverView.ts     layout and wiring
     sidebar/                  Files, Search, Changes and History sections, tree, keyboard navigation
