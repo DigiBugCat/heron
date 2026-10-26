@@ -3,6 +3,7 @@ import * as path from 'path';
 import { GitRepo } from '../../git/GitRepo';
 import { FileLocation, OutlineNode, outlineTree, Position } from '../../lsp/locations';
 import type { LspManager, LspStatus } from '../../lsp/LspManager';
+import type { ServerAccess } from '../../lsp/requests';
 import { findRepoRoot } from '../../utils/paths';
 import { CodeIntel, JumpKind } from '../pane/codeIntel';
 import { CodeRenderer } from '../pane/renderers';
@@ -113,6 +114,11 @@ export class CodeSurface extends Component implements CodeNavigator {
 	async outline(): Promise<OutlineNode[] | null> {
 		const response = await this.intel.documentSymbols();
 		return response === null ? null : outlineTree(response);
+	}
+
+	/** The shown file's language server for custom requests, or null without one. */
+	server(): Promise<ServerAccess | null> {
+		return this.intel.server();
 	}
 
 	/** The file shown, as an absolute path. */

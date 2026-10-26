@@ -1,4 +1,8 @@
 import { BUILTIN_SERVERS } from './lsp/servers';
+import {
+	CodeNotesSettings, DEFAULT_CODE_NOTES_SETTINGS, DEFAULT_MODEL_SETTINGS, ModelSettings,
+	sanitizeCodeNotesSettings, sanitizeModelSettings,
+} from './notes/settings';
 
 /** Whether code tabs open read-only or editable. */
 export type CodeMode = 'read' | 'edit';
@@ -33,6 +37,10 @@ export interface SourceObserverSettings {
 	sidebarPanelsAdded: boolean;
 	/** How code files open: for reading, or ready to edit. */
 	codeMode: CodeMode;
+	/** Margin notes on code. */
+	codeNotes: CodeNotesSettings;
+	/** The opt-in model actions (explain, find similar, diagram). */
+	model: ModelSettings;
 }
 
 export const DEFAULT_SETTINGS: SourceObserverSettings = {
@@ -49,6 +57,8 @@ export const DEFAULT_SETTINGS: SourceObserverSettings = {
 	serverCommands: {},
 	sidebarPanelsAdded: false,
 	codeMode: 'read',
+	codeNotes: DEFAULT_CODE_NOTES_SETTINGS,
+	model: DEFAULT_MODEL_SETTINGS,
 };
 
 export const FONT_SIZE_RANGE = { min: 10, max: 20 } as const;
@@ -90,6 +100,8 @@ export function sanitizeSettings(raw: unknown): SourceObserverSettings {
 		serverCommands: sanitizeServerCommands(data.serverCommands),
 		sidebarPanelsAdded: data.sidebarPanelsAdded === true,
 		codeMode: data.codeMode === 'edit' ? 'edit' : 'read',
+		codeNotes: sanitizeCodeNotesSettings(data.codeNotes),
+		model: sanitizeModelSettings(data.model),
 	};
 }
 

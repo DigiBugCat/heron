@@ -13,6 +13,7 @@ import { ExplorerGit } from './ui/vault/ExplorerGit';
 import { CHANGES_VIEW_TYPE, ChangesView } from './ui/vault/ChangesView';
 import { DIFF_VIEW_TYPE, DiffState, DiffView } from './ui/vault/DiffView';
 import { OUTLINE_VIEW_TYPE, OutlineView } from './ui/vault/OutlineView';
+import { CodeNotesFeature } from './ui/notes/CodeNotesFeature';
 import type { ChangeEntry } from './git/status';
 
 /** Root plugin class — registers the view, ribbon icon, commands, links, and settings tab. */
@@ -26,6 +27,8 @@ export default class SourceObserverPlugin extends Plugin {
 	private statusBarEl!: HTMLElement;
 	/** Git state of the repositories in the vault; null on adapters without a folder. */
 	vaultGit: ExplorerGit | null = null;
+	/** Margin notes and model actions in code tabs. */
+	codeNotes!: CodeNotesFeature;
 
 	async onload() {
 		await this.loadSettings();
@@ -82,6 +85,7 @@ export default class SourceObserverPlugin extends Plugin {
 			onRepoChange: (listener) => this.vaultGit?.onChange(listener) ?? (() => undefined),
 		}));
 		this.app.workspace.onLayoutReady(() => { void this.addSidebarPanelsOnce(); });
+		this.codeNotes = this.addChild(new CodeNotesFeature(this));
 
 		this.statusBarEl = this.addStatusBarItem();
 		this.statusBarEl.addClass('heron-status');

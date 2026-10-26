@@ -282,6 +282,15 @@ export class GitRepo {
 		}
 	}
 
+	/** The commit HEAD points at, or null in a repository without commits. */
+	async head(): Promise<string | null> {
+		try {
+			return (await execText(this.root, ['rev-parse', '--verify', '--quiet', 'HEAD^{commit}'])).trim() || null;
+		} catch {
+			return null;
+		}
+	}
+
 	/** Local and remote-tracking branch names, e.g. `main`, `origin/main`. */
 	async branches(): Promise<string[]> {
 		const out = await execText(this.root, ['for-each-ref', '--format=%(refname)', 'refs/heads', 'refs/remotes']);
