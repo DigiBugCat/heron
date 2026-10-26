@@ -17,6 +17,7 @@ Heron is a fork of [Source Observer](https://github.com/IceKhan13/obsidian-sourc
 - Worktree switcher: select the branch name in **Changes**
 - Links and live embeds of code in notes
 - Rewind: a local history of every change to code in the vault, with who made it (you, Claude Code, git or something else), diffs and restore
+- GitHub and GitHub Enterprise pull requests: a list in the sidebar, an overview tab with checks, changed files and review threads, and file diffs with the threads in the gutter (read-only)
 
 ## Usage
 
@@ -60,6 +61,19 @@ Change a command, or turn a server off, in **Settings → Heron → Language ser
 
 Navigation commands are under **Heron:** in the command palette: **Go to definition**, **Go to type definition**, **Go to implementation**, **Find references**, **Go to symbol in file…**, **Go to symbol in project…**, **Go back**, **Go forward** and **Restart language servers**. <kbd>Mod</kbd>+<kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> and the mouse's back and forward buttons also move through the history.
 
+### Pull requests
+
+For repositories in the vault whose `origin` remote is on GitHub (github.com or a GitHub Enterprise host), run **Heron: Show pull requests**. The **Pull requests** panel lists the open pull requests of the repository of the active file (pick another from its menu), grouped into **Review requested**, **Yours** and **Others**, with check status, unresolved review threads and when each was last updated. It loads when you open it, when Obsidian regains focus (at most once a minute) and when you select the refresh button.
+
+Selecting a pull request opens a tab with its description, checks, changed files and review threads. Selecting a file opens its diff, fetched from GitHub at the pull request's commits (nothing is checked out), with review threads marked in the gutter and listed below. **Heron: Open pull request for current branch** finds the pull request for the branch you have checked out, and **Heron: Copy pull request link** copies its link. Commenting and reviewing are not supported yet.
+
+Heron needs a token for each host. It uses, in this order:
+
+1. A token pasted in **Settings → Heron → GitHub**. Heron keeps it in Obsidian's secret storage (Obsidian 1.11.4 and later), or else in a file only you can read, `~/.config/heron/github-tokens.json` — never in the vault.
+2. Your [GitHub CLI](https://cli.github.com) login: `gh auth login` for github.com, `gh auth login --hostname github.example.com` for GitHub Enterprise.
+
+A classic token needs the `repo` scope for private repositories; a fine-grained token needs read access to pull requests, contents, commit statuses and checks. On GitHub Enterprise Server, Heron uses `https://<host>/api/v3` and `https://<host>/api/graphql`. **Test connection** in settings checks a token by asking GitHub which account it belongs to.
+
 ### Links and embeds
 
 To reference code from a note, select lines and use the link icon in the viewer header: **Copy link**, **Copy embed** or **Copy as code block**. An embed looks like this:
@@ -84,7 +98,7 @@ Requires desktop Obsidian 1.7.2+. Git features need `git` on your `PATH`.
 
 Heron writes a code file only when you save it in editing mode or restore it with Rewind; it never runs git commands that change a repository. Rewind keeps copies of changed files in your system's app data folder, outside the vault (see **Rewind** above), and reads the Claude Code hook log there if you install the hooks; nothing leaves your computer. Delete that folder to remove the history. Language servers are programs you install; Heron runs them with the project folder as their working directory and talks to them over standard input and output. They read the project, and some keep caches or download dependencies (for example `gopls` may fetch Go modules). Heron turns off rust-analyzer's `cargo check` and build scripts so reading a Rust project does not build it. Turn language servers off in settings if you don't want this.
 
-Source Observer makes no network requests. It only runs read-only git commands (`status`, `ls-files`, `cat-file`, `grep`, `log` (including `log -g` for the reflog), `blame`, `diff`, `merge-base`, `rev-parse`, `rev-list`, `for-each-ref`, `symbolic-ref`, `worktree list`) with `--no-optional-locks`, so it never writes to your repository.
+Heron contacts GitHub only for repositories with a GitHub remote, and only while you use the pull request features: the **Pull requests** panel while it is shown, pull request tabs, the pull request commands and **Test connection**. It only reads (GET requests and GraphQL queries) and never changes anything on GitHub. To find a token it may run `gh auth token`. It makes no other network requests and collects no telemetry. It only runs read-only git commands (`status`, `ls-files`, `cat-file`, `grep`, `log` (including `log -g` for the reflog), `blame`, `diff`, `merge-base`, `rev-parse`, `rev-list`, `for-each-ref`, `symbolic-ref`, `worktree list`, `remote get-url`) with `--no-optional-locks`, so it never writes to your repository.
 
 ## Development
 

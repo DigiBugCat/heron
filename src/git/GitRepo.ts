@@ -316,6 +316,15 @@ export class GitRepo {
 		return parseWorktreeList(await execText(this.root, ['worktree', 'list', '--porcelain']));
 	}
 
+	/** The URL of remote `name` (`git remote get-url`), or null when there is no such remote. */
+	async remoteUrl(name = 'origin'): Promise<string | null> {
+		try {
+			return (await execText(this.root, ['remote', 'get-url', name])).trim() || null;
+		} catch {
+			return null;
+		}
+	}
+
 	/** True when this is a linked worktree rather than the main one. */
 	get isLinkedWorktree(): boolean {
 		return this.gitDir !== this.commonDir;

@@ -24,6 +24,7 @@ src/commands.ts      command palette commands — IDs are stable, never rename t
 src/settings.ts      settings model, defaults, validation
 src/links/           obsidian:// links, embed and code block formats, embed processor
 src/lsp/             language servers: framing, transport, server specs, manager (no Obsidian imports)
+src/github/          GitHub: remote parsing, tokens, read-only API client, response parsing (no Obsidian imports)
 src/git/             runs and parses git; parsers are pure functions
 src/services/        state and change detection (RepoState, RepoWatcher, FileIndex, ContentSearch, Worktrees)
 src/ui/              the view, sidebar sections, content pane and renderers, CodeMirror extensions, menus
@@ -37,7 +38,7 @@ Dependencies flow one way: `ui → services → git → utils`. `git/` must not 
 ## Non-negotiable rules
 
 - **Git stays read-only.** Only read-only git commands, always through `GitRepo` so `GLOBAL_ARGS` (`--no-optional-locks`, `--literal-pathspecs`, `core.quotepath=off`) applies. Never write to a repository, the index, refs or config. If you add a git command, add it to the list in the README's **Privacy** section.
-- **No network requests, no telemetry.** The plugin works offline. Language servers are the user's own programs; Heron only starts them (in the project root) and talks over stdio. Keep `src/lsp/` free of `obsidian` imports so it stays testable in Node.
+- **No network requests, no telemetry — except GitHub, on demand.** The plugin works offline. Heron contacts GitHub only for repositories with a GitHub remote, and only while pull request features are in use (the **Pull requests** panel while shown, pull request tabs, the pull request commands, **Test connection**). It only reads: GET requests and GraphQL queries, never mutations, all through `src/github/client.ts`. Tokens never appear in logs, the UI or `data.json`. Language servers are the user's own programs; Heron only starts them (in the project root) and talks over stdio. Keep `src/lsp/` and `src/github/` free of `obsidian` imports so they stay testable in Node (the GitHub transport is injected).
 - **Never break saved data.** Command IDs, settings keys, the embed format (`heron` code blocks with `folder`/`file`/`lines`) and the `obsidian://heron` link format are public; keep them backward compatible.
 - **Don't commit build output** (`main.js`) or `node_modules/`.
 

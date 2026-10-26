@@ -345,6 +345,13 @@ export class CodeRenderer extends PaneRenderer {
 	}
 }
 
+/** Extra editor extensions for each side of a diff, e.g. review thread markers. */
+export interface DiffSideExtensions {
+	original?: Extension;
+	/** In the unified layout, this applies to the one editor. */
+	modified?: Extension;
+}
+
 /**
  * Syntax-highlighted diff of two documents using `@codemirror/merge`,
  * either unified (one editor) or split (old and new side by side).
@@ -366,6 +373,7 @@ export class DiffRenderer extends PaneRenderer {
 		private fileName: string,
 		readonly layout: DiffLayout,
 		private wordWrap = false,
+		private sideExtensions: DiffSideExtensions = {},
 	) {
 		super(parent, `so-diff-view so-diff-${layout}`);
 	}
@@ -384,8 +392,8 @@ export class DiffRenderer extends PaneRenderer {
 		if (this.layout === 'split') {
 			this.split = new MergeView({
 				parent: this.el,
-				a: { doc: this.original, extensions },
-				b: { doc: this.modified, extensions },
+				a: { doc: this.original, extensions: [extensions, this.sideExtensions.original ?? []] },
+				b: { doc: this.modified, extensions: [extensions, this.sideExtensions.modified ?? []] },
 				highlightChanges: true,
 				gutter: true,
 				collapseUnchanged,
@@ -401,6 +409,7 @@ export class DiffRenderer extends PaneRenderer {
 				doc: this.modified,
 				extensions: [
 					...extensions,
+					this.sideExtensions.modified ?? [],
 					unifiedMergeView({
 						original: this.original,
 						mergeControls: false,
@@ -425,6 +434,15 @@ export class DiffRenderer extends PaneRenderer {
 	editor() {
 		if (this.split) return this.split[this.focusedSide];
 		return this.unified;
+	}
+
+	/**
+	 * The editor showing one side: in the split layout `original` is the left
+	 * editor; in the unified layout only `modified` has an editor.
+	 */
+	editorFor(side: 'original' | 'modified'): EditorView | null {
+		if (this.split) return side === 'original' ? this.split.a : this.split.b;
+		return side === 'modified' ? this.unified : null;
 	}
 
 	/** Number of added and removed lines across all changed chunks. */

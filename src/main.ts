@@ -13,6 +13,7 @@ import { ExplorerGit } from './ui/vault/ExplorerGit';
 import { CHANGES_VIEW_TYPE, ChangesView } from './ui/vault/ChangesView';
 import { DIFF_VIEW_TYPE, DiffState, DiffView } from './ui/vault/DiffView';
 import { OUTLINE_VIEW_TYPE, OutlineView } from './ui/vault/OutlineView';
+import { GitHubFeature } from './ui/github/GitHubFeature';
 import type { ChangeEntry } from './git/status';
 import type { Rewind } from './ui/vault/rewind/Rewind';
 import { registerRewind } from './ui/vault/rewind/register';
@@ -30,6 +31,8 @@ export default class SourceObserverPlugin extends Plugin {
 	vaultGit: ExplorerGit | null = null;
 	/** Rewind's local history of changes; null on adapters without a folder. */
 	rewind: Rewind | null = null;
+	/** Pull requests from GitHub and GitHub Enterprise. */
+	github!: GitHubFeature;
 
 	async onload() {
 		await this.loadSettings();
@@ -85,6 +88,8 @@ export default class SourceObserverPlugin extends Plugin {
 			},
 			onRepoChange: (listener) => this.vaultGit?.onChange(listener) ?? (() => undefined),
 		}));
+		this.github = new GitHubFeature(this);
+		this.github.register();
 		this.app.workspace.onLayoutReady(() => { void this.addSidebarPanelsOnce(); });
 		this.rewind = registerRewind(this);
 

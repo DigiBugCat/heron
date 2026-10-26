@@ -52,6 +52,12 @@ src/
     workspace.ts              lsp-client Workspace for Heron's single reused editor
     locations.ts              normalizes definition, reference and symbol responses, pure
     LspManager.ts             starts/stops one server per type and root; status and progress
+  github/
+    remote.ts                 remote URL → host/owner/name; API bases for github.com and Enterprise, pure
+    auth.ts                   token per host: pasted (secret storage or private file), then `gh auth token`
+    client.ts                 read-only REST/GraphQL client: pagination, ETags, rate limits, errors
+    parse.ts                  API responses → pull requests, files, checks, review threads, pure
+    service.ts                clients per host and GitHub repositories per local repository
   git/
     GitRepo.ts                resolves root/git dir/prefix; runs git with --no-optional-locks
     status.ts                 pure parser for `git status --porcelain=v2`
@@ -79,6 +85,7 @@ src/
     embed/                    live code embeds rendered inside notes
     vault/                    code tabs, outline, changes and diff panels for code in the vault;
                               rewind/ holds Rewind's capture wiring, panel, diff and "as of" tabs
+    github/                   Pull requests panel, pull request and file diff tabs, settings, commands
     fileMenu.ts               right-click menu for files, folders and changes
     worktreeMenu.ts           the worktree switcher menu
   utils/                      file reading, icons, paths, request tokens, OS integration

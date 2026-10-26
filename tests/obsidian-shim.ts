@@ -251,3 +251,14 @@ export abstract class FuzzySuggestModal<T> extends SuggestModal<T> {
 	abstract getItems(): T[];
 	getSuggestions(): T[] { return this.getItems(); }
 }
+
+
+/** Puts the markdown source in the element as plain text; `MarkdownRenderer.rendered` records calls. */
+export class MarkdownRenderer {
+	static rendered: string[] = [];
+	static render(_app: unknown, markdown: string, el: HTMLElement, _sourcePath: string, _component: Component): Promise<void> {
+		MarkdownRenderer.rendered.push(markdown);
+		el.textContent = markdown;
+		return Promise.resolve();
+	}
+}
