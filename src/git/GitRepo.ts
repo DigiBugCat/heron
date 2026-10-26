@@ -7,7 +7,6 @@ import { BlameCommit, parseBlame } from './blame';
 import { GrepHit, grepArgs, GrepOptions, parseGrepLine } from './grep';
 import { FileCommit, LOG_FORMAT, parseLog } from './history';
 import { parseStatusV2, RepoStatus } from './status';
-import { parseWorktreeList, WorktreeInfo } from './worktrees';
 
 /**
  * Global options for every git invocation:
@@ -320,11 +319,6 @@ export class GitRepo {
 		return parseNameStatus(out);
 	}
 
-	/** All worktrees of the repository, the main worktree first. */
-	async worktrees(): Promise<WorktreeInfo[]> {
-		return parseWorktreeList(await execText(this.root, ['worktree', 'list', '--porcelain']));
-	}
-
 	/** The URL of remote `name` (`git remote get-url`), or null when there is no such remote. */
 	async remoteUrl(name = 'origin'): Promise<string | null> {
 		try {
@@ -332,11 +326,6 @@ export class GitRepo {
 		} catch {
 			return null;
 		}
-	}
-
-	/** True when this is a linked worktree rather than the main one. */
-	get isLinkedWorktree(): boolean {
-		return this.gitDir !== this.commonDir;
 	}
 
 	/** Blames the working-tree version of `repoPath`; one entry per line. */

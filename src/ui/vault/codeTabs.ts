@@ -1,32 +1,32 @@
 import { FileSystemAdapter, FileView, ItemView, Menu, Notice, Scope, setIcon, TFile, ViewStateResult, WorkspaceLeaf } from 'obsidian';
 import * as path from 'path';
-import type SourceObserverPlugin from '../../main';
+import type HeronPlugin from '../../main';
 import type { CodeMode } from '../../settings';
-import type { FileLocation, Position } from '../../lsp/locations';
+import type { FileLocation } from '../../lsp/locations';
+import { COPY_FORMATS, CopyFormat, describeLocation, formatForCopy } from '../../links/sourceLink';
 import { formatBytes, MAX_VIEW_BYTES, readViewableFile } from '../../utils/content';
 import { displayPath } from '../../utils/paths';
 import { copyToClipboard } from '../../utils/system';
 import { CODE_EXTENSIONS } from '../editor/languages';
 import { CodeSurface, CodeSurfaceHost } from './CodeSurface';
+import { CODE_VIEW_TYPE, CodeTarget, EXTERNAL_CODE_VIEW_TYPE, openCodeFile, targetFrom } from './openCode';
 
-export const CODE_VIEW_TYPE = 'heron-code';
-export const EXTERNAL_CODE_VIEW_TYPE = 'heron-external-code';
+export { CODE_VIEW_TYPE, EXTERNAL_CODE_VIEW_TYPE } from './openCode';
 
 const CODE_EXTENSION_SET = new Set(CODE_EXTENSIONS);
 
-/** Ephemeral state that places the cursor; `line` is what Obsidian's search uses. */
-interface CursorState {
-	heronCursor?: Position;
-	line?: number;
-}
+/** The link menu's entries; without a selection they cover the whole file. */
+const COPY_MENU: Record<CopyFormat, string> = {
+	link: 'Copy link to selection',
+	embed: 'Copy embed of selection',
+	code: 'Copy selection as code block',
+};
 
-function cursorFrom(state: unknown): Position | null {
-	if (!state || typeof state !== 'object') return null;
-	const s = state as CursorState;
-	if (s.heronCursor && typeof s.heronCursor.line === 'number') return s.heronCursor;
-	if (typeof s.line === 'number') return { line: s.line, character: 0 };
-	return null;
-}
+const COPIED_NOTICE: Record<CopyFormat, string> = {
+	link: 'Copied link to',
+	embed: 'Copied embed of',
+	code: 'Copied code block from',
+};
 
 /** A tab showing code, so commands and the status bar can find its surface. */
 export interface CodeTab {
@@ -38,7 +38,7 @@ export function isCodeTab(view: unknown): view is CodeTab {
 }
 
 /** The vault's folder on disk, or '' on adapters without one (mobile). */
-export function vaultBasePath(plugin: SourceObserverPlugin): string {
+export function vaultBasePath(plugin: HeronPlugin): string {
 	const adapter = plugin.app.vault.adapter;
 	return adapter instanceof FileSystemAdapter ? adapter.getBasePath() : '';
 }
@@ -47,21 +47,19 @@ export function vaultBasePath(plugin: SourceObserverPlugin): string {
  * Shows `loc` in `leaf`: a vault file through Obsidian (so it joins the
  * tab's history), anything else in an external code tab.
  */
-export async function openLocation(plugin: SourceObserverPlugin, leaf: WorkspaceLeaf, loc: FileLocation): Promise<CodeSurface | null> {
-	const base = vaultBasePath(plugin);
-	const rel = base ? path.relative(base, loc.absPath) : '';
-	const vaultFile = rel && !rel.startsWith('..') && !path.isAbsolute(rel)
-		? plugin.app.vault.getAbstractFileByPath(rel.split(path.sep).join('/'))
-		: null;
-	if (vaultFile instanceof TFile) {
-		await leaf.openFile(vaultFile, { eState: { heronCursor: loc.position } });
-	} else {
-		await leaf.setViewState({ type: EXTERNAL_CODE_VIEW_TYPE, state: { absPath: loc.absPath }, active: true }, { heronCursor: loc.position });
-	}
+export async function openLocation(plugin: HeronPlugin, leaf: WorkspaceLeaf, loc: FileLocation): Promise<CodeSurface | null> {
+	await openCodeFile(plugin.app, vaultBasePath(plugin), leaf, loc.absPath, { cursor: loc.position });
 	return isCodeTab(leaf.view) ? leaf.view.codeSurface() : null;
 }
 
-function surfaceHost(plugin: SourceObserverPlugin, leaf: WorkspaceLeaf): CodeSurfaceHost {
+/** Copies a link, embed or code block for the shown file, limited to the selected lines. */
+export function copyFromSurface(surface: CodeSurface, format: CopyFormat) {
+	const at = surface.linkLocation();
+	if (!at) return;
+	void copyToClipboard(formatForCopy(format, at.loc, at.text), `${COPIED_NOTICE[format]} ${describeLocation(at.loc)}`);
+}
+
+function surfaceHost(plugin: HeronPlugin, leaf: WorkspaceLeaf): CodeSurfaceHost {
 	return {
 		app: plugin.app,
 		lsp: plugin.lsp,
@@ -70,24 +68,39 @@ function surfaceHost(plugin: SourceObserverPlugin, leaf: WorkspaceLeaf): CodeSur
 		open: (loc) => openLocation(plugin, leaf, loc),
 		label: (absPath) => displayPath(absPath, vaultBasePath(plugin)),
 		onStatus: () => plugin.updateStatusBar(),
+		openCommit: (root, commit) => { void plugin.openCommitDiff(root, commit, true); },
 	};
 }
 
 /** Keeps a surface's font size and wrapping in line with the settings. */
-function followSettings(view: ItemView, surface: () => CodeSurface, plugin: SourceObserverPlugin) {
+function followSettings(view: ItemView, surface: () => CodeSurface, plugin: HeronPlugin) {
 	view.registerEvent(plugin.settingsEvents.on('changed', () => {
 		surface().code.setFontSize(plugin.settings.fontSize);
 		surface().code.setWordWrap(plugin.settings.wordWrap);
 	}));
 }
 
+/**
+ * Keys that apply while a code tab is focused, even before clicking into
+ * the editor: Mod+F finds in the file, Mod+Shift+F searches all code.
+ */
+function registerKeys(scope: Scope, surface: () => CodeSurface, plugin: HeronPlugin) {
+	scope.register(['Mod'], 'F', () => (surface().openSearch() ? false : undefined));
+	scope.register(['Mod', 'Shift'], 'F', () => {
+		plugin.searchInCode();
+		return false;
+	});
+}
+
 /** Header buttons shared by both code tabs. */
-function addActions(view: ItemView, surface: () => CodeSurface, plugin: SourceObserverPlugin, file: () => TFile | null) {
-	const blame = view.addAction('user', 'Show blame', () => {
-		const on = surface().toggleBlame();
+function addActions(view: ItemView, surface: () => CodeSurface, plugin: HeronPlugin, file: () => TFile | null) {
+	const blame = view.addAction('user', 'Show blame', () => { surface().toggleBlame(); });
+	view.register(surface().onChange((change) => {
+		if (change !== 'blame') return;
+		const on = surface().blameShown;
 		blame.toggleClass('is-active', on);
 		blame.setAttr('aria-label', on ? 'Hide blame' : 'Show blame');
-	});
+	}));
 	view.addAction('compass', 'Code navigation', (evt) => {
 		const s = surface();
 		const menu = new Menu();
@@ -97,11 +110,28 @@ function addActions(view: ItemView, surface: () => CodeSurface, plugin: SourceOb
 		menu.addItem((i) => i.setTitle('Go to symbol in project…').setIcon('search').onClick(() => s.goToSymbolInProject()));
 		menu.showAtMouseEvent(evt);
 	});
-	view.addAction('link', 'Copy link to file', () => {
+	view.addAction('link', 'Copy link', (evt) => {
+		const menu = new Menu();
 		const f = file();
-		if (f) void copyToClipboard(plugin.app.fileManager.generateMarkdownLink(f, ''), `Copied link to ${f.name}`);
-		else new Notice('Only files in the vault can be linked');
+		if (f) {
+			menu.addItem((i) => i.setTitle('Copy link to file').setIcon('file-symlink').onClick(() => {
+				void copyToClipboard(plugin.app.fileManager.generateMarkdownLink(f, ''), `Copied link to ${f.name}`);
+			}));
+			menu.addSeparator();
+		}
+		for (const { format, icon } of COPY_FORMATS) {
+			menu.addItem((i) => i.setTitle(COPY_MENU[format]).setIcon(icon).onClick(() => copyFromSurface(surface(), format)));
+		}
+		menu.showAtMouseEvent(evt);
 	});
+}
+
+/** Applies a cursor or line target to `surface`; false when it shows no file yet. */
+function applyTarget(surface: CodeSurface, target: CodeTarget): boolean {
+	if (!surface.absPath) return false;
+	if (target.lines) surface.showLines(target.lines);
+	else if (target.cursor) surface.moveCursor(target.cursor);
+	return true;
 }
 
 /**
@@ -110,7 +140,7 @@ function addActions(view: ItemView, surface: () => CodeSurface, plugin: SourceOb
  */
 export class CodeFileView extends FileView implements CodeTab {
 	private surface!: CodeSurface;
-	private pendingCursor: Position | null = null;
+	private pendingTarget: CodeTarget | null = null;
 	/** 'edit' or 'read'; kept in the tab's state so it survives restarts. */
 	private mode: CodeMode;
 	private modeButton: HTMLElement | null = null;
@@ -118,7 +148,7 @@ export class CodeFileView extends FileView implements CodeTab {
 	private lastSaved: string | null = null;
 	private warnedOutsideChange = false;
 
-	constructor(leaf: WorkspaceLeaf, private plugin: SourceObserverPlugin) {
+	constructor(leaf: WorkspaceLeaf, private plugin: HeronPlugin) {
 		super(leaf);
 		this.mode = plugin.settings.codeMode;
 		this.scope = new Scope(this.app.scope);
@@ -130,6 +160,7 @@ export class CodeFileView extends FileView implements CodeTab {
 			this.setMode(this.mode === 'edit' ? 'read' : 'edit');
 			return false;
 		});
+		registerKeys(this.scope, () => this.surface, plugin);
 	}
 
 	getViewType() { return CODE_VIEW_TYPE; }
@@ -175,10 +206,11 @@ export class CodeFileView extends FileView implements CodeTab {
 	}
 
 	async onLoadFile(file: TFile): Promise<void> {
-		const cursor = this.pendingCursor;
-		this.pendingCursor = null;
+		const target = this.pendingTarget;
+		this.pendingTarget = null;
 		this.warnedOutsideChange = false;
-		await this.loadContent(file, cursor, false);
+		await this.loadContent(file, target?.cursor ?? null, false);
+		if (target?.lines) this.surface.showLines(target.lines);
 	}
 
 	async onUnloadFile(file: TFile): Promise<void> {
@@ -188,10 +220,8 @@ export class CodeFileView extends FileView implements CodeTab {
 
 	setEphemeralState(state: unknown): void {
 		super.setEphemeralState(state);
-		const cursor = cursorFrom(state);
-		if (!cursor) return;
-		if (this.surface.absPath) this.surface.moveCursor(cursor);
-		else this.pendingCursor = cursor;
+		const target = targetFrom(state);
+		if (target && !applyTarget(this.surface, target)) this.pendingTarget = target;
 	}
 
 	getEphemeralState(): Record<string, unknown> {
@@ -256,7 +286,7 @@ export class CodeFileView extends FileView implements CodeTab {
 		await this.loadContent(file, this.surface.code.cursor(), true);
 	}
 
-	private async loadContent(file: TFile, cursor: Position | null, keepScroll: boolean) {
+	private async loadContent(file: TFile, cursor: CodeTarget['cursor'], keepScroll: boolean) {
 		if (file.stat.size > MAX_VIEW_BYTES) {
 			this.surface.showMessage(`${file.name} is too large to display (${formatBytes(file.stat.size)})`);
 			return;
@@ -268,21 +298,25 @@ export class CodeFileView extends FileView implements CodeTab {
 			return;
 		}
 		this.lastSaved = text;
-		await this.surface.show(path.join(vaultBasePath(this.plugin), file.path), text, cursor, keepScroll);
+		await this.surface.show(path.join(vaultBasePath(this.plugin), file.path), text, cursor ?? null, keepScroll);
 	}
 }
 
 /**
- * Read-only code from outside the vault, e.g. a library's type stubs that a
- * definition led to. Navigable like a file tab.
+ * Read-only code from outside the vault (or in folders Obsidian does not
+ * list), e.g. a library's type stubs that a definition led to, or the
+ * target of a link. Navigable like a file tab.
  */
 export class ExternalCodeView extends ItemView implements CodeTab {
 	navigation = true;
 	private surface!: CodeSurface;
 	private absPath = '';
+	private pendingTarget: CodeTarget | null = null;
 
-	constructor(leaf: WorkspaceLeaf, private plugin: SourceObserverPlugin) {
+	constructor(leaf: WorkspaceLeaf, private plugin: HeronPlugin) {
 		super(leaf);
+		this.scope = new Scope(this.app.scope);
+		registerKeys(this.scope, () => this.surface, plugin);
 	}
 
 	getViewType() { return EXTERNAL_CODE_VIEW_TYPE; }
@@ -311,15 +345,26 @@ export class ExternalCodeView extends ItemView implements CodeTab {
 			this.absPath = absPath;
 			const content = await readViewableFile(absPath);
 			if (this.absPath !== absPath) return;
-			if (content.kind === 'text') await this.surface.show(absPath, content.text, null);
-			else this.surface.showMessage(`Cannot show ${path.basename(absPath)} (${content.kind})`);
+			const target = this.pendingTarget;
+			this.pendingTarget = null;
+			if (content.kind === 'text') {
+				await this.surface.show(absPath, content.text, target?.cursor ?? null);
+				if (target?.lines) this.surface.showLines(target.lines);
+			} else {
+				this.surface.showMessage(content.kind === 'missing' ? `${path.basename(absPath)} was not found` : `Cannot show ${path.basename(absPath)} (${content.kind})`);
+			}
 		}
 		await super.setState(state, result);
 	}
 
 	setEphemeralState(state: unknown): void {
 		super.setEphemeralState(state);
-		const cursor = cursorFrom(state);
-		if (cursor) this.surface.moveCursor(cursor);
+		const target = targetFrom(state);
+		if (target && !applyTarget(this.surface, target)) this.pendingTarget = target;
+	}
+
+	getEphemeralState(): Record<string, unknown> {
+		const cursor = this.surface.absPath ? this.surface.code.cursor() : null;
+		return { ...super.getEphemeralState(), ...(cursor ? { heronCursor: cursor } : {}) };
 	}
 }

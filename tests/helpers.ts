@@ -22,7 +22,7 @@ export function git(cwd: string, ...args: string[]): string {
 }
 
 /** Creates a fresh temp directory (realpath, so macOS /var → /private/var is resolved). */
-export function tempDir(prefix = 'so-test-'): string {
+export function tempDir(prefix = 'heron-test-'): string {
 	return realpathSync(mkdtempSync(path.join(tmpdir(), prefix)));
 }
 

@@ -6,7 +6,7 @@ import { languageOf } from '../codemap/mask';
 import { fileMapModel, folderMapModel, MapChange } from '../codemap/models';
 import { GitRepo } from '../git/GitRepo';
 import { ChangedFile, primaryKind } from '../git/status';
-import { isHiddenPath, MAX_INDEXED_FILES, walkFolder } from './FileIndex';
+import { isHiddenPath, MAX_INDEXED_FILES, walkFolder } from './folderWalk';
 
 /** Most source files read for one map. */
 export const MAX_MAP_SOURCES = 2000;

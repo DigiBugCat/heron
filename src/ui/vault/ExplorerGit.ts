@@ -1,6 +1,7 @@
 import { App, Component, debounce, TFolder } from 'obsidian';
 import { promises as fsp } from 'fs';
 import * as path from 'path';
+import type { GitRepo } from '../../git/GitRepo';
 import { ChangeKind, primaryKind } from '../../git/status';
 import { RepoSnapshot, RepoState } from '../../services/RepoState';
 import { RepoWatcher } from '../../services/RepoWatcher';
@@ -110,6 +111,17 @@ export class ExplorerGit extends Component {
 	/** Every tracked repository with its latest state, in vault path order. */
 	vaultRepos(): VaultRepo[] {
 		return [...this.repos].map(([rel, repo]) => ({ rel, snapshot: repo.snapshot })).sort((a, b) => a.rel.localeCompare(b.rel));
+	}
+
+	/** The innermost readable repository holding `vaultPath`, or null. */
+	repoAt(vaultPath: string): { rel: string; repo: GitRepo } | null {
+		let best: { rel: string; repo: GitRepo } | null = null;
+		for (const [rel, tracked] of this.repos) {
+			const inside = vaultPath === rel || vaultPath.startsWith(`${rel}/`);
+			if (!inside || tracked.snapshot.kind !== 'repo' || (best && best.rel.length >= rel.length)) continue;
+			best = { rel, repo: tracked.snapshot.repo };
+		}
+		return best;
 	}
 
 	/** Calls `listener` whenever any repository's state changes; returns an unsubscribe function. */

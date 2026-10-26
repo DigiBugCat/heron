@@ -1,5 +1,5 @@
 import { Component, ItemView, Menu, Modal, Notice, Setting, TAbstractFile, WorkspaceLeaf } from 'obsidian';
-import type SourceObserverPlugin from '../../main';
+import type HeronPlugin from '../../main';
 import { CodeNotesStore } from '../../services/CodeNotesStore';
 import { copyToClipboard } from '../../utils/system';
 import { CODE_VIEW_TYPE, CodeTab, isCodeTab, openLocation, vaultBasePath } from '../vault/codeTabs';
@@ -30,7 +30,7 @@ export class CodeNotesFeature extends Component {
 	private attached = new Map<ItemView, Attached>();
 	private listeners = new Set<() => void>();
 
-	constructor(private plugin: SourceObserverPlugin) {
+	constructor(private plugin: HeronPlugin) {
 		super();
 		this.store = new CodeNotesStore(vaultNotes(plugin.app), () => plugin.settings.codeNotes.folder);
 		this.runs = this.addChild(new ModelRuns(() => plugin.addStatusBarItem()));

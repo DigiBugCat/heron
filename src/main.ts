@@ -1,28 +1,35 @@
-import { Events, Notice, Plugin, sanitizeHTMLToDom, TFile, WorkspaceLeaf } from 'obsidian';
+import { Events, Notice, Plugin, sanitizeHTMLToDom, TFile } from 'obsidian';
 import * as path from 'path';
 import { registerCommands } from './commands';
+import type { ChangeEntry } from './git/status';
+import type { FileCommit } from './git/history';
 import { registerLinks } from './links/register';
-import { registerCodeMaps } from './ui/codemap/register';
-import { LspManager } from './lsp/LspManager';
 import type { SourceLocation } from './links/sourceLink';
-import { sanitizeSettings, SourceObserverSettings } from './settings';
-import { SourceObserverSettingTab } from './ui/SettingTab';
-import { SourceObserverView, VIEW_TYPE } from './ui/SourceObserverView';
+import { LspManager } from './lsp/LspManager';
+import { HeronSettings, sanitizeSettings, setBaseBranch, setBaseCompare } from './settings';
+import { registerCodeMaps } from './ui/codemap/register';
 import { CODE_EXTENSIONS } from './ui/editor/languages';
-import { CODE_VIEW_TYPE, CodeFileView, EXTERNAL_CODE_VIEW_TYPE, ExternalCodeView, isCodeTab, vaultBasePath } from './ui/vault/codeTabs';
-import { ExplorerGit } from './ui/vault/ExplorerGit';
-import { CHANGES_VIEW_TYPE, ChangesView } from './ui/vault/ChangesView';
-import { DIFF_VIEW_TYPE, DiffState, DiffView } from './ui/vault/DiffView';
-import { OUTLINE_VIEW_TYPE, OutlineView } from './ui/vault/OutlineView';
 import { GitHubFeature } from './ui/github/GitHubFeature';
 import { CodeNotesFeature } from './ui/notes/CodeNotesFeature';
-import type { ChangeEntry } from './git/status';
+import { HeronSettingTab } from './ui/SettingTab';
+import { CHANGES_VIEW_TYPE, ChangesView } from './ui/vault/ChangesView';
+import { CodeSearchModal, hitPath, SearchRepo } from './ui/vault/CodeSearchModal';
+import { CODE_VIEW_TYPE, CodeFileView, EXTERNAL_CODE_VIEW_TYPE, ExternalCodeView, isCodeTab, vaultBasePath } from './ui/vault/codeTabs';
+import { DIFF_VIEW_TYPE, DiffState, DiffView } from './ui/vault/DiffView';
+import { ExplorerGit } from './ui/vault/ExplorerGit';
+import { openCodeFile, openSourceLocation } from './ui/vault/openCode';
+import { OUTLINE_VIEW_TYPE, OutlineView } from './ui/vault/OutlineView';
 import type { Rewind } from './ui/vault/rewind/Rewind';
 import { registerRewind } from './ui/vault/rewind/register';
+import { REWIND_VIEW_TYPE, RewindView } from './ui/vault/rewind/RewindView';
 
-/** Root plugin class — registers the view, ribbon icon, commands, links, and settings tab. */
-export default class SourceObserverPlugin extends Plugin {
-	settings!: SourceObserverSettings;
+/**
+ * Heron: code inside the vault opens in tabs, with language servers, git
+ * panels, Rewind, pull requests, code maps and margin notes. The plugin
+ * class only wires features together.
+ */
+export default class HeronPlugin extends Plugin {
+	settings!: HeronSettings;
 	/** Fires 'changed' after settings are persisted so open views can re-render. */
 	settingsEvents = new Events();
 	lsp!: LspManager;
@@ -64,7 +71,6 @@ export default class SourceObserverPlugin extends Plugin {
 			this.restartLanguageServers();
 		}));
 
-		this.registerView(VIEW_TYPE, (leaf) => new SourceObserverView(leaf, this));
 		this.registerView(CODE_VIEW_TYPE, (leaf) => new CodeFileView(leaf, this));
 		this.registerView(EXTERNAL_CODE_VIEW_TYPE, (leaf) => new ExternalCodeView(leaf, this));
 		this.registerCodeExtensions();
@@ -75,6 +81,22 @@ export default class SourceObserverPlugin extends Plugin {
 		this.registerView(OUTLINE_VIEW_TYPE, (leaf) => new OutlineView(leaf));
 		this.registerView(CHANGES_VIEW_TYPE, (leaf) => new ChangesView(leaf, {
 			git: () => this.vaultGit,
+			base: {
+				isOn: (repo) => this.settings.baseCompareRepos.includes(repo.commonDir),
+				setOn: (repo, on) => {
+					this.settings.baseCompareRepos = setBaseCompare(this.settings.baseCompareRepos, repo.commonDir, on);
+					void this.saveSettings();
+				},
+				branch: (repo) => this.settings.baseBranches[repo.commonDir] ?? null,
+				setBranch: (repo, branch) => {
+					this.settings.baseBranches = setBaseBranch(this.settings.baseBranches, repo.commonDir, branch);
+					void this.saveSettings();
+				},
+				onChange: (listener) => {
+					const ref = this.settingsEvents.on('changed', listener);
+					return () => this.settingsEvents.offref(ref);
+				},
+			},
 			openDiff: (repoRel, entry, newTab) => { void this.openDiff(repoRel, entry, newTab); },
 			openFile: (vaultPath, newTab) => { void this.openVaultFile(vaultPath, newTab); },
 		}));
@@ -86,10 +108,7 @@ export default class SourceObserverPlugin extends Plugin {
 				this.settings.diffLayout = layout;
 				void this.saveSettings();
 			},
-			openFile: (absPath) => {
-				const rel = path.relative(vaultBasePath(this), absPath).split(path.sep).join('/');
-				void this.openVaultFile(rel, false);
-			},
+			openFile: (absPath) => { void openCodeFile(this.app, vaultBasePath(this), leaf, absPath); },
 			onRepoChange: (listener) => this.vaultGit?.onChange(listener) ?? (() => undefined),
 		}));
 		this.github = new GitHubFeature(this);
@@ -103,25 +122,11 @@ export default class SourceObserverPlugin extends Plugin {
 		this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.updateStatusBar()));
 		this.register(this.lsp.onChange(() => this.updateStatusBar()));
 
-		this.addRibbonIcon('code-2', 'Heron', () => { void this.activateView(); });
-
 		registerCommands(this);
 		registerLinks(this);
 		registerCodeMaps(this);
 
-		this.addSettingTab(new SourceObserverSettingTab(this.app, this));
-	}
-
-	/** Opens the Heron tab, reusing an existing leaf if one is already open. */
-	async activateView(): Promise<SourceObserverView | null> {
-		const { workspace } = this.app;
-		let leaf: WorkspaceLeaf | undefined = workspace.getLeavesOfType(VIEW_TYPE)[0];
-		if (!leaf) {
-			leaf = workspace.getLeaf('tab');
-			await leaf.setViewState({ type: VIEW_TYPE, active: true });
-		}
-		await workspace.revealLeaf(leaf);
-		return leaf.view instanceof SourceObserverView ? leaf.view : null;
+		this.addSettingTab(new HeronSettingTab(this.app, this));
 	}
 
 	/**
@@ -149,27 +154,85 @@ export default class SourceObserverPlugin extends Plugin {
 	}
 
 	/** Shows a sidebar panel, adding it to the right sidebar if it was closed. */
-	async revealPanel(type: string) {
+	async revealPanel(type: string, state?: Record<string, unknown>) {
 		const { workspace } = this.app;
 		let leaf = workspace.getLeavesOfType(type)[0];
 		if (!leaf) {
 			leaf = workspace.getRightLeaf(false) ?? undefined;
-			await leaf?.setViewState({ type, active: true });
+			await leaf?.setViewState({ type, active: true, state });
+		} else if (state) {
+			await leaf.setViewState({ type, active: true, state });
 		}
 		if (leaf) await workspace.revealLeaf(leaf);
 	}
 
+	/** The repository of the file in the active tab, if it is in one of the vault's repositories. */
+	activeRepo() {
+		const file = this.app.workspace.getActiveFile();
+		return file ? this.vaultGit?.repoAt(file.path) ?? null : null;
+	}
+
+	/** Shows the commits of the active file in the Rewind panel. */
+	async showFileHistory() {
+		await this.revealPanel(REWIND_VIEW_TYPE, { scope: 'commits' });
+		const view = this.app.workspace.getLeavesOfType(REWIND_VIEW_TYPE)[0]?.view;
+		if (view instanceof RewindView) view.setScope('commits');
+	}
+
+	/** Switches the active file's repository between uncommitted changes and changes against its base branch. */
+	async toggleBaseComparison() {
+		const at = this.activeRepo();
+		if (!at) return;
+		const on = this.settings.baseCompareRepos.includes(at.repo.commonDir);
+		this.settings.baseCompareRepos = setBaseCompare(this.settings.baseCompareRepos, at.repo.commonDir, !on);
+		await this.saveSettings();
+		await this.revealPanel(CHANGES_VIEW_TYPE);
+	}
+
 	/** Opens the diff of `entry` (in the repository at vault path `repoRel`) in a tab. */
 	async openDiff(repoRel: string, entry: ChangeEntry, newTab: boolean) {
-		const state: DiffState = { root: path.join(vaultBasePath(this), repoRel), file: entry.file.path, group: entry.group };
-		const leaf = this.app.workspace.getLeaf(newTab ? 'tab' : false);
-		await leaf.setViewState({ type: DIFF_VIEW_TYPE, state: { ...state }, active: true });
+		const root = path.join(vaultBasePath(this), repoRel);
+		const state: DiffState = entry.group === 'base' && entry.base
+			? { root, file: entry.file.path, group: 'base', baseRef: entry.base.ref }
+			: { root, file: entry.file.path, group: entry.group };
+		await this.app.workspace.getLeaf(newTab ? 'tab' : false).setViewState({ type: DIFF_VIEW_TYPE, state: { ...state }, active: true });
+	}
+
+	/** Opens the change `commit` made to its file, in the repository at `root`. */
+	async openCommitDiff(root: string, commit: FileCommit, newTab: boolean) {
+		const state: DiffState = { root, file: commit.path, commit };
+		await this.app.workspace.getLeaf(newTab ? 'tab' : false).setViewState({ type: DIFF_VIEW_TYPE, state: { ...state }, active: true });
 	}
 
 	/** Opens a file in the vault by its vault path. */
 	async openVaultFile(vaultPath: string, newTab: boolean) {
 		const file = this.app.vault.getAbstractFileByPath(vaultPath);
 		if (file instanceof TFile) await this.app.workspace.getLeaf(newTab ? 'tab' : false).openFile(file);
+	}
+
+	/** Opens a link's or embed's file at its lines: a vault file in its tab, anything else read-only. */
+	async openLocation(loc: SourceLocation, newTab: boolean) {
+		await openSourceLocation(this.app, vaultBasePath(this), loc, newTab);
+	}
+
+	/** The vault's repositories to search, the active file's first. */
+	searchRepos(): SearchRepo[] {
+		const active = this.activeRepo()?.rel;
+		const repos = (this.vaultGit?.vaultRepos() ?? [])
+			.flatMap(({ rel, snapshot }) => (snapshot.kind === 'repo' ? [{ repo: snapshot.repo, vaultPath: rel }] : []));
+		return repos.sort((a, b) => Number(b.vaultPath === active) - Number(a.vaultPath === active));
+	}
+
+	/** Opens **Search in code**, filled with the active code tab's selection when it is on one line. */
+	searchInCode() {
+		const view = this.app.workspace.getMostRecentLeaf()?.view;
+		const selected = isCodeTab(view) ? view.codeSurface().selectedText() : '';
+		const initial = selected && !selected.includes('\n') ? selected : '';
+		new CodeSearchModal(this.app, () => this.searchRepos(), initial, (hit, newTab) => {
+			const leaf = this.app.workspace.getLeaf(newTab ? 'tab' : false);
+			const line = hit.match.line;
+			void openCodeFile(this.app, vaultBasePath(this), leaf, hitPath(hit), { lines: { from: line, to: line } });
+		}).open();
 	}
 
 	/** Shows the active code tab's language server in the status bar. */
@@ -204,12 +267,6 @@ export default class SourceObserverPlugin extends Plugin {
 
 	private lspConfigKey(): string {
 		return JSON.stringify([this.settings.languageServers, this.settings.serverCommands]);
-	}
-
-	/** Opens a file (and lines) from a link or embed, switching folders if needed. */
-	async openLocation(loc: SourceLocation) {
-		const view = await this.activateView();
-		await view?.openLocation(loc);
 	}
 
 	async loadSettings() {

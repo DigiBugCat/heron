@@ -1,4 +1,4 @@
-import { debounce, MarkdownRenderChild, setIcon } from 'obsidian';
+import { debounce, Keymap, MarkdownRenderChild, setIcon } from 'obsidian';
 import { FSWatcher, watch } from 'fs';
 import * as path from 'path';
 import { EditorState, Prec } from '@codemirror/state';
@@ -32,7 +32,7 @@ export function sliceLines(text: string, from: number, to: number): { text: stri
 /**
  * A live, read-only excerpt of a file inside a note, rendered for
  * ```heron blocks. It re-reads the file when it changes on disk;
- * the header opens the location in Heron.
+ * the header opens the file in a code tab at the embedded lines.
  */
 export class CodeEmbed extends MarkdownRenderChild {
 	private bodyEl: HTMLElement;
@@ -40,21 +40,21 @@ export class CodeEmbed extends MarkdownRenderChild {
 	private watcher: FSWatcher | null = null;
 	private latest = new LatestRequest();
 
-	constructor(containerEl: HTMLElement, private spec: EmbedSpec, private onOpen: (loc: SourceLocation) => void) {
+	constructor(containerEl: HTMLElement, private spec: EmbedSpec, private onOpen: (loc: SourceLocation, newTab: boolean) => void) {
 		super(containerEl);
-		containerEl.addClass('so-embed');
-		const header = containerEl.createDiv({ cls: 'so-embed-header', attr: { role: 'link', tabindex: '0' } });
+		containerEl.addClass('heron-embed');
+		const header = containerEl.createDiv({ cls: 'heron-embed-header', attr: { role: 'link', tabindex: '0' } });
 		const [icon, cls] = fileIcon(path.basename(spec.absPath));
-		setIcon(header.createSpan({ cls: `so-embed-icon ${cls}` }), icon);
-		header.createSpan({ cls: 'so-embed-label', text: describeLocation(spec.location) });
-		header.title = `Open ${spec.absPath} in Heron`;
-		this.bodyEl = containerEl.createDiv({ cls: 'so-embed-body' });
+		setIcon(header.createSpan({ cls: `heron-embed-icon ${cls}` }), icon);
+		header.createSpan({ cls: 'heron-embed-label', text: describeLocation(spec.location) });
+		header.title = `Open ${spec.absPath}`;
+		this.bodyEl = containerEl.createDiv({ cls: 'heron-embed-body' });
 
-		const open = (evt: Event) => {
+		const open = (evt: MouseEvent | KeyboardEvent) => {
 			// In live preview, a click would otherwise move the cursor into the block's source.
 			evt.preventDefault();
 			evt.stopPropagation();
-			this.onOpen(this.spec.location);
+			this.onOpen(this.spec.location, Keymap.isModEvent(evt) !== false);
 		};
 		this.registerDomEvent(header, 'click', open);
 		this.registerDomEvent(header, 'keydown', (evt) => {
@@ -121,7 +121,7 @@ export class CodeEmbed extends MarkdownRenderChild {
 	}
 
 	private message(text: string) {
-		this.bodyEl.createDiv({ cls: 'so-embed-message', text });
+		this.bodyEl.createDiv({ cls: 'heron-embed-message', text });
 	}
 
 	private destroyEditor() {

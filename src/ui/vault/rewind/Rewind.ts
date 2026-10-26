@@ -1,7 +1,7 @@
 import { Component, debounce, TFile } from 'obsidian';
 import { promises as fsp } from 'fs';
 import * as path from 'path';
-import type SourceObserverPlugin from '../../../main';
+import type HeronPlugin from '../../../main';
 import { changesFiles } from '../../../services/rewind/attribution';
 import { HOOK_LOG_NAME, hookLogEnd, readHookLog } from '../../../services/rewind/claudeHook';
 import { hashText, HistoryStore } from '../../../services/rewind/HistoryStore';
@@ -46,7 +46,7 @@ export class Rewind extends Component {
 	private hookOffset = 0;
 	private pollingHook = false;
 
-	constructor(private plugin: SourceObserverPlugin, private basePath: string, private git: ExplorerGit) {
+	constructor(private plugin: HeronPlugin, private basePath: string, private git: ExplorerGit) {
 		super();
 	}
 

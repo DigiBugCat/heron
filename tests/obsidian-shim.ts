@@ -20,8 +20,8 @@ function applyInfo(el: HTMLElement, info?: DomInfo | string) {
 
 function installDomHelpers() {
 	const proto = Node.prototype as unknown as Record<string, unknown>;
-	if (proto.__soShim) return;
-	proto.__soShim = true;
+	if (proto.__heronShim) return;
+	proto.__heronShim = true;
 
 	proto.createEl = function (this: Node, tag: string, info?: DomInfo | string) {
 		const el = (this.ownerDocument ?? document).createElement(tag);
@@ -64,12 +64,12 @@ function installDomHelpers() {
 		for (const [k, v] of Object.entries(props)) this.style.setProperty(k, v);
 	};
 	// Obsidian's hide/show set `display`; a class is enough for `isShown` below.
-	el.hide = function (this: Element) { this.classList.add('so-hidden'); };
-	el.show = function (this: Element) { this.classList.remove('so-hidden'); };
-	el.toggle = function (this: Element, show: boolean) { this.classList.toggle('so-hidden', !show); };
-	// jsdom has no layout; treat elements as shown unless an ancestor is hidden by class.
+	el.hide = function (this: Element) { this.classList.add('shim-hidden'); };
+	el.show = function (this: Element) { this.classList.remove('shim-hidden'); };
+	el.toggle = function (this: Element, show: boolean) { this.classList.toggle('shim-hidden', !show); };
+	// jsdom has no layout; treat elements as shown unless an ancestor is hidden.
 	el.isShown = function (this: Element) {
-		return this.isConnected && !this.closest('.so-hidden, .so-section-collapsed');
+		return this.isConnected && !this.closest('.shim-hidden');
 	};
 
 	// jsdom does not implement scrolling or layout.
@@ -205,6 +205,7 @@ export class TAbstractFile {
 }
 
 export class TFile extends TAbstractFile {
+	stat = { size: 0, ctime: 0, mtime: 0 };
 	get extension(): string {
 		const dot = this.name.lastIndexOf('.');
 		return dot < 0 ? '' : this.name.slice(dot + 1);
@@ -320,6 +321,91 @@ export class Menu {
 	showAtPosition() { Menu.last = this; return this; }
 }
 
+/** Records registered keys; `trigger` runs a handler as a key press would. */
+export class Scope {
+	keys: { modifiers: string[]; key: string; handler: (evt: KeyboardEvent) => unknown }[] = [];
+	constructor(public parent?: Scope) {}
+	register(modifiers: string[], key: string, handler: (evt: KeyboardEvent) => unknown) {
+		const entry = { modifiers, key, handler };
+		this.keys.push(entry);
+		return entry;
+	}
+	unregister(handler: unknown) {
+		this.keys = this.keys.filter((k) => k !== handler);
+	}
+	trigger(modifiers: string[], key: string): unknown {
+		const entry = this.keys.find((k) => k.key === key && k.modifiers.join() === modifiers.join());
+		return entry?.handler(new KeyboardEvent('keydown', { key }));
+	}
+}
+
+/**
+ * An `ItemView` without a workspace: tests pass a leaf with an `app`, then
+ * call `load()` and `onOpen()`. `actions` records header buttons.
+ */
+export class ItemView extends Component {
+	app: unknown;
+	containerEl: HTMLElement = document.createElement('div');
+	contentEl: HTMLElement;
+	navigation = false;
+	scope: Scope | null = null;
+	actions: { icon: string; title: string; el: HTMLElement }[] = [];
+	constructor(public leaf: { app?: unknown }) {
+		super();
+		this.app = leaf.app;
+		this.contentEl = this.containerEl.createDiv({ cls: 'view-content' });
+	}
+	addAction(icon: string, title: string, callback: (evt: MouseEvent) => unknown): HTMLElement {
+		const el = document.createElement('a');
+		el.setAttribute('aria-label', title);
+		el.addEventListener('click', (evt) => callback(evt));
+		this.actions.push({ icon, title, el });
+		return el;
+	}
+	getState(): Record<string, unknown> { return {}; }
+	setState(_state: unknown, _result: unknown): Promise<void> { return Promise.resolve(); }
+	getEphemeralState(): Record<string, unknown> { return {}; }
+	setEphemeralState(_state: unknown) { /* override */ }
+	onOpen(): Promise<void> { return Promise.resolve(); }
+	onClose(): Promise<void> { return Promise.resolve(); }
+}
+
+/**
+ * A `FileView` without a workspace: tests set `file` and call
+ * `onLoadFile` themselves, as Obsidian does when a tab opens a file.
+ */
+export class FileView extends ItemView {
+	file: TFile | null = null;
+	allowNoFile = false;
+	navigation = true;
+	getDisplayText() { return this.file?.basename ?? ''; }
+	canAcceptExtension(_extension: string) { return false; }
+	onLoadFile(_file: TFile): Promise<void> { return Promise.resolve(); }
+	onUnloadFile(_file: TFile): Promise<void> { return Promise.resolve(); }
+}
+
+export class FileSystemAdapter {
+	constructor(private basePath = '') {}
+	getBasePath() { return this.basePath; }
+}
+
+/** Obsidian's event emitter, for settings change notifications. */
+export class Events {
+	private handlers = new Map<string, Set<(...args: unknown[]) => unknown>>();
+	on(name: string, callback: (...args: unknown[]) => unknown) {
+		let set = this.handlers.get(name);
+		if (!set) this.handlers.set(name, (set = new Set()));
+		set.add(callback);
+		return { name, callback };
+	}
+	offref(ref: { name: string; callback: (...args: unknown[]) => unknown }) {
+		this.handlers.get(ref.name)?.delete(ref.callback);
+	}
+	trigger(name: string, ...args: unknown[]) {
+		for (const callback of this.handlers.get(name) ?? []) callback(...args);
+	}
+}
+
 export class MarkdownRenderChild extends Component {
 	constructor(public containerEl: HTMLElement) { super(); }
 }
@@ -334,9 +420,13 @@ export class Modal {
 	modalEl: HTMLElement = document.createElement('div');
 	titleEl: HTMLElement = this.modalEl.createDiv({ cls: 'modal-title' });
 	contentEl: HTMLElement = this.modalEl.createDiv({ cls: 'modal-content' });
+	/** Typed loosely so tests can cast recorded modals to the real classes. */
+	scope: unknown = new Scope();
 	constructor(public app: unknown) {}
 	open() { Modal.opened.push(this); }
-	close() { Modal.closed.push(this); }
+	close() { Modal.closed.push(this); this.onClose(); }
+	onOpen(): void | Promise<void> { /* override */ }
+	onClose() { /* override */ }
 }
 
 /** A file view with unsaved state; `saves` counts calls to `save`. */
@@ -346,11 +436,23 @@ export class TextFileView extends Component {
 	save(): Promise<void> { this.saves++; return Promise.resolve(); }
 }
 
+/** Like Obsidian's: the input sits in `.prompt-input-container`, results below it. */
 export abstract class SuggestModal<T> extends Modal {
 	limit = 100;
 	emptyStateText = '';
 	placeholder = '';
+	instructions: { command: string; purpose: string }[] = [];
+	inputEl: HTMLInputElement;
+	resultContainerEl: HTMLElement;
+	constructor(app: unknown) {
+		super(app);
+		const container = this.modalEl.createDiv({ cls: 'prompt-input-container' });
+		this.inputEl = container.createEl('input', { cls: 'prompt-input' });
+		this.resultContainerEl = this.modalEl.createDiv({ cls: 'prompt-results' });
+	}
 	setPlaceholder(placeholder: string) { this.placeholder = placeholder; }
+	setInstructions(instructions: { command: string; purpose: string }[]) { this.instructions = instructions; }
+	selectActiveSuggestion(_evt: MouseEvent | KeyboardEvent) { /* no selection in tests */ }
 	abstract getSuggestions(query: string): T[] | Promise<T[]>;
 }
 

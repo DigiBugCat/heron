@@ -1,14 +1,13 @@
 import { Notice } from 'obsidian';
-import type SourceObserverPlugin from './main';
-import type { CodeNavigator } from './ui/vault/CodeSurface';
-import { isCodeTab } from './ui/vault/codeTabs';
-import { CHANGES_VIEW_TYPE } from './ui/vault/ChangesView';
-import { OUTLINE_VIEW_TYPE } from './ui/vault/OutlineView';
-import type { JumpKind } from './ui/pane/codeIntel';
+import type HeronPlugin from './main';
 import { COPY_FORMATS, CopyFormat } from './links/sourceLink';
-import { SourceObserverView } from './ui/SourceObserverView';
+import type { JumpKind } from './ui/pane/codeIntel';
 import { registerGitHubCommands } from './ui/github/commands';
 import { registerCodeNoteCommands } from './ui/notes/noteCommands';
+import { CHANGES_VIEW_TYPE } from './ui/vault/ChangesView';
+import type { CodeSurface } from './ui/vault/CodeSurface';
+import { copyFromSurface, isCodeTab } from './ui/vault/codeTabs';
+import { OUTLINE_VIEW_TYPE } from './ui/vault/OutlineView';
 
 const COPY_COMMANDS: Record<CopyFormat, { id: string; name: string }> = {
 	link: { id: 'copy-link', name: 'Copy link to file or selection' },
@@ -17,84 +16,75 @@ const COPY_COMMANDS: Record<CopyFormat, { id: string; name: string }> = {
 };
 
 /** Registers the command palette commands. IDs are stable; do not rename them. */
-export function registerCommands(plugin: SourceObserverPlugin) {
-	/** For `checkCallback`: runs `action` on the active view when `applies` holds. */
-	const onActiveView = (
-		checking: boolean,
-		applies: (view: SourceObserverView) => boolean,
-		action: (view: SourceObserverView) => void,
-	): boolean => {
-		const view = plugin.app.workspace.getActiveViewOfType(SourceObserverView);
-		if (!view || !applies(view)) return false;
-		if (!checking) action(view);
-		return true;
-	};
-
-	/** The active folder view or code tab, for navigation commands. */
-	const onNavigator = (checking: boolean, action: (nav: CodeNavigator) => void): boolean => {
+export function registerCommands(plugin: HeronPlugin) {
+	/** The active code tab's surface while it shows a file. */
+	const activeSurface = (): CodeSurface | null => {
 		const view = plugin.app.workspace.getMostRecentLeaf()?.view;
-		const nav: CodeNavigator | null = view instanceof SourceObserverView ? view : isCodeTab(view) ? view.codeSurface() : null;
-		if (!nav?.hasCodeIntel()) return false;
-		if (!checking) action(nav);
+		const surface = isCodeTab(view) ? view.codeSurface() : null;
+		return surface?.absPath ? surface : null;
+	};
+
+	/** For `checkCallback`: runs `action` on the active code tab when `applies` holds. */
+	const onSurface = (
+		checking: boolean,
+		applies: (surface: CodeSurface) => boolean,
+		action: (surface: CodeSurface) => void,
+	): boolean => {
+		const surface = activeSurface();
+		if (!surface || !applies(surface)) return false;
+		if (!checking) action(surface);
 		return true;
 	};
 
-	plugin.addCommand({
-		id: 'open',
-		name: 'Open',
-		callback: () => { void plugin.activateView(); },
-	});
+	/** Navigation commands apply while the active code tab has a language server. */
+	const onNavigator = (checking: boolean, action: (surface: CodeSurface) => void) =>
+		onSurface(checking, (s) => s.hasCodeIntel(), action);
 
-	plugin.addCommand({
-		id: 'open-folder',
-		name: 'Open folder…',
-		callback: () => {
-			void plugin.activateView().then((view) => view?.promptForFolder());
-		},
-	});
+	/** Commands about the active file's repository apply while it is in one. */
+	const inRepo = (checking: boolean, action: () => void): boolean => {
+		if (!plugin.activeRepo()) return false;
+		if (!checking) action();
+		return true;
+	};
 
 	plugin.addCommand({
 		id: 'find-in-file',
 		name: 'Find in file',
-		checkCallback: (checking) => onActiveView(checking, (v) => v.hasEditor(), (v) => v.findInFile()),
+		checkCallback: (checking) => onSurface(checking, () => true, (s) => { s.openSearch(); }),
 	});
 
 	plugin.addCommand({
 		id: 'go-to-line',
 		name: 'Go to line',
-		checkCallback: (checking) => onActiveView(checking, (v) => v.hasEditor(), (v) => v.goToLine()),
+		checkCallback: (checking) => onSurface(checking, () => true, (s) => { s.goToLine(); }),
 	});
 
 	plugin.addCommand({
 		id: 'search-in-files',
-		name: 'Search in files',
-		callback: () => {
-			void plugin.activateView().then((view) => view?.searchInFiles());
+		name: 'Search in code',
+		checkCallback: (checking) => {
+			if (!plugin.vaultGit) return false;
+			if (!checking) plugin.searchInCode();
+			return true;
 		},
 	});
 
 	plugin.addCommand({
 		id: 'show-file-history',
 		name: 'Show file history',
-		checkCallback: (checking) => onActiveView(checking, (v) => v.canShowHistory(), (v) => v.showFileHistory()),
+		checkCallback: (checking) => inRepo(checking, () => { void plugin.showFileHistory(); }),
 	});
 
 	plugin.addCommand({
 		id: 'toggle-blame',
 		name: 'Toggle blame',
-		checkCallback: (checking) => onActiveView(checking, (v) => v.canToggleBlame(), (v) => v.toggleBlame()),
+		checkCallback: (checking) => onSurface(checking, () => true, (s) => { s.toggleBlame(); }),
 	});
 
 	plugin.addCommand({
 		id: 'toggle-compare-with-base',
 		name: 'Toggle changes against base branch',
-		checkCallback: (checking) => onActiveView(checking, (v) => v.hasRepo(), (v) => v.toggleBaseComparison()),
-	});
-
-	plugin.addCommand({
-		id: 'switch-worktree',
-		name: 'Switch worktree…',
-		checkCallback: (checking) => onActiveView(checking, (v) => v.hasRepo(), (v) => { void v.showWorktrees(); }),
+		checkCallback: (checking) => inRepo(checking, () => { void plugin.toggleBaseComparison(); }),
 	});
 
 	const jumps: { id: string; name: string; kind: JumpKind }[] = [
@@ -107,38 +97,26 @@ export function registerCommands(plugin: SourceObserverPlugin) {
 		plugin.addCommand({
 			id,
 			name,
-			checkCallback: (checking) => onNavigator(checking, (v) => v.goTo(kind)),
+			checkCallback: (checking) => onNavigator(checking, (s) => s.goTo(kind)),
 		});
 	}
 
 	plugin.addCommand({
 		id: 'find-references',
 		name: 'Find references',
-		checkCallback: (checking) => onNavigator(checking, (v) => v.findReferences()),
+		checkCallback: (checking) => onNavigator(checking, (s) => s.findReferences()),
 	});
 
 	plugin.addCommand({
 		id: 'go-to-symbol-in-file',
 		name: 'Go to symbol in file…',
-		checkCallback: (checking) => onNavigator(checking, (v) => v.goToSymbolInFile()),
+		checkCallback: (checking) => onNavigator(checking, (s) => s.goToSymbolInFile()),
 	});
 
 	plugin.addCommand({
 		id: 'go-to-symbol-in-project',
 		name: 'Go to symbol in project…',
-		checkCallback: (checking) => onNavigator(checking, (v) => v.goToSymbolInProject()),
-	});
-
-	plugin.addCommand({
-		id: 'go-back',
-		name: 'Go back',
-		checkCallback: (checking) => onActiveView(checking, (v) => v.canGoBack(), (v) => v.goBack()),
-	});
-
-	plugin.addCommand({
-		id: 'go-forward',
-		name: 'Go forward',
-		checkCallback: (checking) => onActiveView(checking, (v) => v.canGoForward(), (v) => v.goForward()),
+		checkCallback: (checking) => onNavigator(checking, (s) => s.goToSymbolInProject()),
 	});
 
 	plugin.addCommand({
@@ -168,7 +146,7 @@ export function registerCommands(plugin: SourceObserverPlugin) {
 	for (const { format } of COPY_FORMATS) {
 		plugin.addCommand({
 			...COPY_COMMANDS[format],
-			checkCallback: (checking) => onActiveView(checking, (v) => v.canCopyLink(), (v) => v.copyFromEditor(format)),
+			checkCallback: (checking) => onSurface(checking, (s) => !!s.projectRoot, (s) => copyFromSurface(s, format)),
 		});
 	}
 }

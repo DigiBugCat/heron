@@ -1,8 +1,5 @@
-import * as path from 'path';
 import { GitError, GitRepo } from '../git/GitRepo';
-import { GrepHit, GrepSyntax, isPcreUnsupported, MAX_GREP_LINE_CHARS } from '../git/grep';
-import { readViewableFile } from '../utils/content';
-import { FileIndex, isHiddenPath } from './FileIndex';
+import { GrepHit, GrepSyntax, isPcreUnsupported } from '../git/grep';
 
 /** Maximum number of matching lines collected per search. */
 export const MAX_SEARCH_MATCHES = 2000;
@@ -10,8 +7,6 @@ export const MAX_SEARCH_MATCHES = 2000;
 export const PREVIEW_CHARS = 160;
 /** Characters of context kept before the first match when a preview is cut. */
 const PREVIEW_LEAD = 24;
-/** Files read in parallel when searching a folder that is not a repository. */
-const READ_CONCURRENCY = 8;
 
 export interface SearchQuery {
 	text: string;
@@ -30,7 +25,7 @@ export interface MatchLine {
 }
 
 export interface FileMatches {
-	/** Path relative to the opened folder, '/'-separated. */
+	/** Path relative to the repository's folder, '/'-separated. */
 	rel: string;
 	lines: MatchLine[];
 }
@@ -106,43 +101,35 @@ function groupHits(hits: { rel: string; match: MatchLine }[], truncated: boolean
 	};
 }
 
+/** A match in one of several searched repositories; `T` says which. */
+export interface RepoHit<T> {
+	target: T;
+	/** Path relative to the repository's folder, '/'-separated. */
+	rel: string;
+	match: MatchLine;
+}
+
 /**
- * Searches file contents under the opened folder. In a git repository this
- * runs `git grep` (fast, honours .gitignore, skips binary files); elsewhere
- * it reads the files from the shared `FileIndex`. Match ranges for display
- * are always computed with the JS regular expression.
+ * Searches file contents with `git grep` (fast, honours .gitignore, skips
+ * binary files). Match ranges for display are computed with the JS regular
+ * expression, so highlighting matches what the user typed.
  */
 export class ContentSearch {
 	/** Set once git reports it was built without PCRE, so regexes use `-E`. */
 	private pcreUnavailable = false;
 
-	constructor(private index: FileIndex) {}
-
-	/** Runs `query`; rejects with SyntaxError for an invalid regex, or GitError. */
-	async run(
-		folder: string,
-		repo: GitRepo | null,
-		query: SearchQuery,
-		opts: { showHidden: boolean; signal?: AbortSignal },
-	): Promise<SearchResults> {
+	/**
+	 * Runs `query` in `repo`, stopping after `limit` lines; rejects with
+	 * SyntaxError for an invalid regex, or GitError (also when cancelled).
+	 */
+	async run(repo: GitRepo, query: SearchQuery, opts: { limit?: number; signal?: AbortSignal } = {}): Promise<SearchResults> {
 		const re = compileQuery(query);
-		const include = (rel: string) => opts.showHidden || !isHiddenPath(rel);
-		if (repo) return this.runGit(repo, query, re, include, opts.signal);
-		return this.runFiles(folder, re, include, opts.signal);
-	}
-
-	private async runGit(
-		repo: GitRepo,
-		query: SearchQuery,
-		re: RegExp,
-		include: (rel: string) => boolean,
-		signal?: AbortSignal,
-	): Promise<SearchResults> {
+		const limit = opts.limit ?? MAX_SEARCH_MATCHES;
 		let syntax: GrepSyntax = !query.regex ? 'fixed' : this.pcreUnavailable ? 'extended' : 'perl';
 		const grep = (s: GrepSyntax) => repo.grep(
 			{ pattern: query.text, syntax: s, caseSensitive: query.caseSensitive, wholeWord: query.wholeWord },
-			MAX_SEARCH_MATCHES,
-			signal,
+			limit,
+			opts.signal,
 		);
 		let result: { hits: GrepHit[]; truncated: boolean };
 		try {
@@ -153,48 +140,38 @@ export class ContentSearch {
 			syntax = 'extended';
 			result = await grep(syntax);
 		}
-		const hits: { rel: string; match: MatchLine }[] = [];
-		for (const hit of result.hits) {
-			const rel = repo.toFolderRelative(hit.path);
-			if (!include(rel)) continue;
-			hits.push({ rel, match: makePreview(hit.line, hit.text, matchRanges(re, hit.text)) });
-		}
+		const hits = result.hits.map((hit) => ({
+			rel: repo.toFolderRelative(hit.path),
+			match: makePreview(hit.line, hit.text, matchRanges(re, hit.text)),
+		}));
 		return groupHits(hits, result.truncated);
 	}
 
-	private async runFiles(
-		folder: string,
-		re: RegExp,
-		include: (rel: string) => boolean,
+	/**
+	 * Runs `query` in each repository in order, stopping once
+	 * `MAX_SEARCH_MATCHES` lines were found across all of them.
+	 */
+	async runAll<T extends { repo: GitRepo }>(
+		targets: readonly T[],
+		query: SearchQuery,
 		signal?: AbortSignal,
-	): Promise<SearchResults> {
-		const { files } = await this.index.list();
-		const rels = files.map((f) => f.rel).filter(include);
-		// Results per file index, so output order does not depend on read timing.
-		const perFile: { rel: string; match: MatchLine }[][] = [];
-		let count = 0;
-		let next = 0;
-
-		const worker = async () => {
-			while (next < rels.length && count < MAX_SEARCH_MATCHES && !signal?.aborted) {
-				const i = next++;
-				const rel = rels[i] ?? '';
-				const content = await readViewableFile(path.join(folder, rel));
-				if (content.kind !== 'text') continue;
-				const found: { rel: string; match: MatchLine }[] = [];
-				const lines = content.text.split(/\r\n?|\n/);
-				for (let n = 0; n < lines.length && count < MAX_SEARCH_MATCHES; n++) {
-					const text = (lines[n] ?? '').slice(0, MAX_GREP_LINE_CHARS);
-					const ranges = matchRanges(re, text);
-					if (ranges.length === 0) continue;
-					found.push({ rel, match: makePreview(n + 1, text, ranges) });
-					count++;
-				}
-				perFile[i] = found;
+	): Promise<{ hits: RepoHit<T>[]; truncated: boolean }> {
+		compileQuery(query);
+		const hits: RepoHit<T>[] = [];
+		let truncated = false;
+		for (const target of targets) {
+			const left = MAX_SEARCH_MATCHES - hits.length;
+			if (left <= 0) {
+				truncated = true;
+				break;
 			}
-		};
-		await Promise.all(Array.from({ length: READ_CONCURRENCY }, worker));
-		if (signal?.aborted) throw new GitError('Search cancelled');
-		return groupHits(perFile.flat(), count >= MAX_SEARCH_MATCHES);
+			const results = await this.run(target.repo, query, { limit: left, signal });
+			for (const file of results.files) {
+				for (const match of file.lines) hits.push({ target, rel: file.rel, match });
+			}
+			truncated ||= results.truncated;
+		}
+		return { hits, truncated };
 	}
 }
+

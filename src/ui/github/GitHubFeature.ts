@@ -1,5 +1,5 @@
 import { App, requestUrl } from 'obsidian';
-import type SourceObserverPlugin from '../../main';
+import type HeronPlugin from '../../main';
 import { ghTokenReader, SecretStorageLike, TokenResolver, tokenStoreFor } from '../../github/auth';
 import type { HttpRequest, HttpResponse, Transport } from '../../github/client';
 import { GitHubService } from '../../github/service';
@@ -27,7 +27,7 @@ export class GitHubFeature implements GitHubViewContext {
 	readonly service: GitHubService;
 	private lastRepoKey = '';
 
-	constructor(private plugin: SourceObserverPlugin) {
+	constructor(private plugin: HeronPlugin) {
 		// Obsidian before 1.11.4 has no secret storage; the store then falls back to a private file.
 		const app = plugin.app as unknown as { secretStorage?: SecretStorageLike };
 		this.service = new GitHubService(new TokenResolver(tokenStoreFor(app), ghTokenReader()), obsidianTransport);

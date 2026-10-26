@@ -1,10 +1,10 @@
 import { App, SecretComponent, Setting } from 'obsidian';
-import type SourceObserverPlugin from '../../main';
+import type HeronPlugin from '../../main';
 import { DEFAULT_MODEL } from '../../model/client';
 import { DEFAULT_NOTES_FOLDER } from '../../notes/notePaths';
 
 /** The **Code notes** and **Model** sections of Heron's settings. */
-export function displayCodeNoteSettings(app: App, containerEl: HTMLElement, plugin: SourceObserverPlugin, redisplay: () => void) {
+export function displayCodeNoteSettings(app: App, containerEl: HTMLElement, plugin: HeronPlugin, redisplay: () => void) {
 	const notes = plugin.settings.codeNotes;
 	const model = plugin.settings.model;
 

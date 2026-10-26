@@ -10,11 +10,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Component } from 'obsidian';
 import { LspManager } from '../src/lsp/LspManager';
 import { mergePaths } from '../src/lsp/shellEnv';
+import type { Position } from '../src/lsp/locations';
 import type { LocationModal } from '../src/ui/locationModals';
-import { ContentPane } from '../src/ui/pane/ContentPane';
 import { CodeSurface } from '../src/ui/vault/CodeSurface';
 import { currentCompletions, startCompletion } from '@codemirror/autocomplete';
-import type { CodeRenderer } from '../src/ui/pane/renderers';
 import { remove, tempDir, write } from './helpers';
 import { Modal } from './obsidian-shim';
 
@@ -32,7 +31,12 @@ afterEach(() => {
 	while (cleanup.length) remove(cleanup.pop() ?? '');
 });
 
-function setup(root: string): { pane: ContentPane; code: () => CodeRenderer } {
+/**
+ * A code tab without Obsidian: `open` shows another file in the same
+ * surface, as a tab does, and `back` returns to where the tab was, as
+ * Obsidian's history does with the tab's ephemeral state.
+ */
+function setup(root: string) {
 	const lsp = new LspManager({
 		enabled: () => true,
 		commands: () => ({}),
@@ -40,11 +44,24 @@ function setup(root: string): { pane: ContentPane; code: () => CodeRenderer } {
 	});
 	const owner = new Component();
 	owner.load();
-	const pane = owner.addChild(new ContentPane(document.body.createDiv(), {
-		fontSize: 13, app: {} as never, lsp, getRoot: () => root, getFolder: () => root,
+	const history: { absPath: string; cursor: Position | null }[] = [];
+	const show = (absPath: string, cursor: Position | null = null) => surface.show(absPath, readFileSync(absPath, 'utf-8'), cursor);
+	const surface: CodeSurface = owner.addChild(new CodeSurface(document.body.createDiv(), {
+		app: {} as never, lsp, fontSize: 13, wordWrap: false,
+		open: async (loc) => {
+			if (surface.absPath) history.push({ absPath: surface.absPath, cursor: surface.code.cursor() });
+			await show(loc.absPath, loc.position);
+			return surface;
+		},
+		label: (p) => path.relative(root, p),
+		onStatus: () => undefined,
 	}));
 	disposers.push(() => { lsp.stopAll(); owner.unload(); });
-	return { pane, code: () => (pane as unknown as { current: CodeRenderer }).current };
+	const back = async () => {
+		const previous = history.pop();
+		if (previous) await show(previous.absPath, previous.cursor);
+	};
+	return { surface, show, back };
 }
 
 /** Zero-based position of `needle` on the first line that contains `lineMarker`. */
@@ -54,29 +71,29 @@ function find(file: string, lineMarker: string, needle: string) {
 	return { line, character: (lines[line] ?? '').indexOf(needle) };
 }
 
-const label = () => document.querySelector('.so-path-label')?.textContent;
 
 describe.skipIf(!extraPath)('real language servers', () => {
 	it('typescript-language-server: definition across files, references and back', async () => {
-		const file = path.join(REPO, 'src/ui/pane/ContentPane.ts');
-		const { pane, code } = setup(REPO);
-		await pane.showFile(file, 'src/ui/pane/ContentPane.ts');
-		await vi.waitFor(() => expect(pane.hasCodeIntel()).toBe(true), { timeout: 30000 });
+		const file = path.join(REPO, 'src/ui/vault/CodeSurface.ts');
+		const { surface, show, back } = setup(REPO);
+		await show(file);
+		await vi.waitFor(() => expect(surface.hasCodeIntel()).toBe(true), { timeout: 30000 });
 
 		// Asked right away: the first answer must wait until tsserver has loaded the project.
-		code().moveCursor(find(file, 'new CodeIntel(', 'CodeIntel'));
-		pane.goTo('definition');
-		await vi.waitFor(() => expect(label()).toBe('src/ui/pane/codeIntel.ts'), { timeout: 30000 });
-		expect(code().cursor()).toEqual(find(path.join(REPO, 'src/ui/pane/codeIntel.ts'), 'export class CodeIntel', 'CodeIntel'));
+		surface.moveCursor(find(file, 'new CodeIntel(', 'CodeIntel'));
+		surface.goTo('definition');
+		const target = path.join(REPO, 'src/ui/pane/codeIntel.ts');
+		await vi.waitFor(() => expect(surface.absPath).toBe(target), { timeout: 30000 });
+		expect(surface.code.cursor()).toEqual(find(target, 'export class CodeIntel', 'CodeIntel'));
 
-		await vi.waitFor(() => expect(pane.hasCodeIntel()).toBe(true), { timeout: 30000 });
-		pane.findReferences();
+		await vi.waitFor(() => expect(surface.hasCodeIntel()).toBe(true), { timeout: 30000 });
+		surface.findReferences();
 		await vi.waitFor(() => expect(Modal.opened).toHaveLength(1), { timeout: 30000 });
 		const titles = (Modal.opened[0] as LocationModal).getItems().map((i) => i.title);
-		expect(titles.some((t) => t.startsWith('src/ui/pane/ContentPane.ts:'))).toBe(true);
+		expect(titles.some((t) => t.startsWith('src/ui/vault/CodeSurface.ts:'))).toBe(true);
 
-		pane.goBack();
-		await vi.waitFor(() => expect(label()).toBe('src/ui/pane/ContentPane.ts'));
+		await back();
+		expect(surface.absPath).toBe(file);
 	}, 90000);
 
 	it('basedpyright: definition in another module', async () => {
@@ -84,14 +101,14 @@ describe.skipIf(!extraPath)('real language servers', () => {
 		cleanup.push(root);
 		write(root, 'helpers.py', '"""Helpers."""\n\n\ndef greet(name: str) -> str:\n    return f"hi {name}"\n');
 		write(root, 'main.py', 'from helpers import greet\n\nprint(greet("heron"))\n');
-		const { pane, code } = setup(root);
-		await pane.showFile(path.join(root, 'main.py'), 'main.py');
-		await vi.waitFor(() => expect(pane.hasCodeIntel()).toBe(true), { timeout: 30000 });
+		const { surface, show } = setup(root);
+		await show(path.join(root, 'main.py'));
+		await vi.waitFor(() => expect(surface.hasCodeIntel()).toBe(true), { timeout: 30000 });
 
-		code().moveCursor({ line: 2, character: 7 });
-		pane.goTo('definition');
-		await vi.waitFor(() => expect(label()).toBe('helpers.py'), { timeout: 30000 });
-		expect(code().cursor()).toEqual({ line: 3, character: 4 });
+		surface.moveCursor({ line: 2, character: 7 });
+		surface.goTo('definition');
+		await vi.waitFor(() => expect(surface.absPath).toBe(path.join(root, 'helpers.py')), { timeout: 30000 });
+		expect(surface.code.cursor()).toEqual({ line: 3, character: 4 });
 	}, 90000);
 
 	async function editableSurface(root: string, file: string, text: string) {

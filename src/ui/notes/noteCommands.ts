@@ -1,9 +1,9 @@
-import type SourceObserverPlugin from '../../main';
+import type HeronPlugin from '../../main';
 import type { CodeNotesFeature } from './CodeNotesFeature';
 import type { NotesController } from './NotesController';
 
 /** Command palette commands for margin notes and model actions. IDs are stable; do not rename them. */
-export function registerCodeNoteCommands(plugin: SourceObserverPlugin, feature: CodeNotesFeature) {
+export function registerCodeNoteCommands(plugin: HeronPlugin, feature: CodeNotesFeature) {
 	const onNotes = (checking: boolean, action: (controller: NotesController) => void, needsModel = false): boolean => {
 		const controller = feature.activeController();
 		if (!controller || (needsModel && !plugin.settings.model.enabled)) return false;

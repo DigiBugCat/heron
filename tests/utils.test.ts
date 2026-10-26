@@ -1,7 +1,7 @@
 import * as os from 'os';
 import * as path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { addRecentFolder, MAX_RECENT_FOLDERS, sanitizeSettings } from '../src/settings';
+import { sanitizeSettings } from '../src/settings';
 import { formatBytes, looksBinary, readViewableFile } from '../src/utils/content';
 import { fileIcon } from '../src/utils/fileIcons';
 import { LatestRequest } from '../src/utils/latest';
@@ -57,15 +57,24 @@ describe('sanitizeSettings', () => {
 	});
 
 	it('fills defaults and clamps out-of-range values', () => {
-		const s = sanitizeSettings({ fontSize: 99, sidebarWidth: 5, showHidden: 'yes', recentFolders: [1, '/a', '/a', ''] });
+		const s = sanitizeSettings({ fontSize: 99, codeMode: 'edit' });
 		expect(s.fontSize).toBe(20);
-		expect(s.sidebarWidth).toBe(160);
-		expect(s.showHidden).toBe(true);
-		expect(s.recentFolders).toEqual(['/a']);
+		expect(s.codeMode).toBe('edit');
+		expect(sanitizeSettings({ fontSize: 1 }).fontSize).toBe(10);
 	});
 
-	it('seeds recent folders from the last opened path when upgrading', () => {
-		expect(sanitizeSettings({ lastOpenedPath: '/repo' }).recentFolders).toEqual(['/repo']);
+	it('drops keys it does not know, such as the old folder view\'s', () => {
+		const s = sanitizeSettings({ lastOpenedPath: '/repo', recentFolders: ['/repo'], sidebarWidth: 300, showHidden: false });
+		expect(Object.keys(s)).not.toContain('lastOpenedPath');
+		expect(Object.keys(s)).not.toContain('recentFolders');
+		expect(Object.keys(s)).not.toContain('sidebarWidth');
+		expect(Object.keys(s)).not.toContain('showHidden');
+	});
+
+	it('defaults word wrap to off and only accepts booleans', () => {
+		expect(sanitizeSettings({}).wordWrap).toBe(false);
+		expect(sanitizeSettings({ wordWrap: true }).wordWrap).toBe(true);
+		expect(sanitizeSettings({ wordWrap: 'yes' }).wordWrap).toBe(false);
 	});
 
 	it('accepts only known diff layouts', () => {
@@ -76,16 +85,7 @@ describe('sanitizeSettings', () => {
 
 	it('survives missing or corrupt data', () => {
 		expect(sanitizeSettings(null).fontSize).toBe(13);
-		expect(sanitizeSettings('junk').recentFolders).toEqual([]);
-	});
-
-	it('keeps recent folders unique, newest first, and bounded', () => {
-		let recent: string[] = [];
-		for (let i = 0; i < MAX_RECENT_FOLDERS + 3; i++) recent = addRecentFolder(recent, `/f${i}`);
-		recent = addRecentFolder(recent, '/f5');
-		expect(recent[0]).toBe('/f5');
-		expect(recent).toHaveLength(MAX_RECENT_FOLDERS);
-		expect(new Set(recent).size).toBe(recent.length);
+		expect(sanitizeSettings('junk').baseCompareRepos).toEqual([]);
 	});
 });
 
@@ -100,9 +100,9 @@ describe('normalizeFolderInput', () => {
 
 describe('small utilities', () => {
 	it('picks icons by extension and for dotfiles', () => {
-		expect(fileIcon('main.TS')[1]).toBe('so-icon-ts');
+		expect(fileIcon('main.TS')[1]).toBe('heron-icon-ts');
 		expect(fileIcon('.env')[0]).toBe('lock');
-		expect(fileIcon('Makefile')[1]).toBe('so-icon-default');
+		expect(fileIcon('Makefile')[1]).toBe('heron-icon-default');
 	});
 
 	it('LatestRequest invalidates older tokens', () => {

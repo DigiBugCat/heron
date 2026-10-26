@@ -64,7 +64,7 @@ export const obsidianTheme = EditorView.theme({
 	'.cm-searchMatch.cm-searchMatch-selected': { background: 'rgba(var(--color-orange-rgb), 0.5)' },
 	'.cm-selectionMatch': { background: 'var(--text-highlight-bg)' },
 	// Lines a link or embed pointed to.
-	'.so-linked-line': { background: 'rgba(var(--color-yellow-rgb), 0.15)' },
+	'.heron-linked-line': { background: 'rgba(var(--color-yellow-rgb), 0.15)' },
 	// Find and go-to-line panels, styled like Obsidian's own inputs.
 	'.cm-panels': {
 		background: 'var(--background-secondary)',

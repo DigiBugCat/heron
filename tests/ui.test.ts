@@ -1,18 +1,12 @@
 // @vitest-environment jsdom
 import * as path from 'path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Component } from 'obsidian';
-import { GitRepo } from '../src/git/GitRepo';
-import { ChangeEntry, groupChanges } from '../src/git/status';
-import type { RepoSnapshot } from '../src/services/RepoState';
-import { ContentPane } from '../src/ui/pane/ContentPane';
+import type { FileCommit } from '../src/git/history';
 import { CodeEmbed, sliceLines } from '../src/ui/embed/CodeEmbed';
-import { fileMenuGroups, showFileMenu } from '../src/ui/fileMenu';
-import { ChangesSection } from '../src/ui/sidebar/ChangesSection';
-import { FileTree } from '../src/ui/sidebar/FileTree';
-import { makeRepo, remove, tempDir, write } from './helpers';
-// Same module instance as `obsidian` under vitest's alias, with the recording API typed.
-import { Menu } from './obsidian-shim';
+import { CodeRenderer, DiffRenderer } from '../src/ui/pane/renderers';
+import { CodeSurface, CodeSurfaceHost } from '../src/ui/vault/CodeSurface';
+import { git, makeRepo, remove, tempDir, write } from './helpers';
 
 const cleanup: string[] = [];
 const roots: Component[] = [];
@@ -29,180 +23,142 @@ function host(): { owner: Component; el: HTMLElement } {
 	return { owner, el: document.body.createDiv() };
 }
 
-async function repoWithChange(): Promise<{ root: string; repo: GitRepo; entry: ChangeEntry }> {
-	const lines = Array.from({ length: 200 }, (_, i) => `line ${i}`).join('\n');
-	const root = makeRepo({ 'big.ts': lines, 'other.ts': 'export const x = 1;\n' });
-	cleanup.push(root);
-	write(root, 'big.ts', lines.replace('line 100', 'line one hundred'));
-	const opened = await GitRepo.open(root);
-	if (opened.kind !== 'repo') throw new Error('not a repo');
-	const [entry] = groupChanges((await opened.repo.status()).files);
-	return { root, repo: opened.repo, entry: entry as ChangeEntry };
+/** A code surface without a language server, as a code tab shows it. */
+function surface(extra: Partial<CodeSurfaceHost> = {}): { surface: CodeSurface; el: HTMLElement; owner: Component } {
+	const { owner, el } = host();
+	const s = owner.addChild(new CodeSurface(el, {
+		app: {} as never,
+		lsp: { onChange: () => () => undefined, choose: () => null } as never,
+		fontSize: 13,
+		wordWrap: false,
+		open: () => Promise.resolve(null),
+		label: (p) => p,
+		onStatus: () => undefined,
+		...extra,
+	}));
+	return { surface: s, el, owner };
 }
 
-describe('ContentPane', () => {
-	it('fully replaces a diff when a file is opened (regression: diff stayed above the editor)', async () => {
-		const { root, repo, entry } = await repoWithChange();
-		const { owner, el } = host();
-		const pane = owner.addChild(new ContentPane(el, { fontSize: 13 }));
-		const body = el.querySelector('.so-pane') as HTMLElement;
+/** Number of editors whose content wraps lines. */
+const wrapped = (el: HTMLElement) => el.querySelectorAll('.cm-content.cm-lineWrapping').length;
 
-		await pane.showDiff(repo, entry, 'big.ts');
-		expect(body.querySelectorAll('.so-diff-view')).toHaveLength(1);
-		expect(el.querySelector('.so-pane-stats')?.textContent).toBe('+1−1');
+describe('code surface', () => {
+	it('opens find and go-to-line only while a file is shown', async () => {
+		const { surface: s, el } = surface();
+		expect(s.openSearch()).toBe(false);
+		expect(s.goToLine()).toBe(false);
 
-		await pane.showFile(path.join(root, 'other.ts'), 'other.ts');
-		expect(body.querySelectorAll('.so-renderer')).toHaveLength(1);
-		expect(body.querySelectorAll('.so-diff-view')).toHaveLength(0);
-		expect(body.querySelectorAll('.cm-editor')).toHaveLength(1);
-		expect(body.textContent).toContain('export const x = 1;');
-		expect(el.querySelector('.so-path-label')?.textContent).toBe('other.ts');
-	});
-
-	it('never lets a slower earlier load overwrite a newer one (regression: label and content disagreed)', async () => {
-		const { root, repo, entry } = await repoWithChange();
-		const { owner, el } = host();
-		const pane = owner.addChild(new ContentPane(el, { fontSize: 13 }));
-
-		// The diff needs several git calls; the file read is a single fs call.
-		const slow = pane.showDiff(repo, entry, 'big.ts');
-		const fast = pane.showFile(path.join(root, 'other.ts'), 'other.ts');
-		await Promise.all([slow, fast]);
-
-		expect(el.querySelector('.so-path-label')?.textContent).toBe('other.ts');
-		expect(el.querySelectorAll('.so-diff-view')).toHaveLength(0);
-		expect(el.querySelector('.so-pane')?.textContent).toContain('export const x = 1;');
-	});
-
-	it('reuses one editor across files and destroys it on unload', async () => {
-		const dir = tempDir();
-		cleanup.push(dir);
-		write(dir, 'a.py', 'print(1)\n');
-		write(dir, 'b.go', 'package main\n');
-		const { owner, el } = host();
-		const pane = owner.addChild(new ContentPane(el, { fontSize: 13 }));
-
-		await pane.showFile(path.join(dir, 'a.py'), 'a.py');
-		const editor = el.querySelector('.cm-editor');
-		await pane.showFile(path.join(dir, 'b.go'), 'b.go');
-		expect(el.querySelector('.cm-editor')).toBe(editor);
-		expect(el.textContent).toContain('package main');
-
-		owner.removeChild(pane);
-		expect(el.querySelectorAll('.cm-editor')).toHaveLength(0);
-	});
-
-	it('renders a side-by-side diff and switches layout without reloading', async () => {
-		const { repo, entry } = await repoWithChange();
-		const { owner, el } = host();
-		const layouts: string[] = [];
-		const pane = owner.addChild(new ContentPane(el, { fontSize: 13, diffLayout: 'split', onDiffLayoutChange: (l) => layouts.push(l) }));
-
-		await pane.showDiff(repo, entry, 'big.ts');
-		expect(el.querySelectorAll('.so-diff-split .cm-mergeView .cm-editor')).toHaveLength(2);
-		expect(el.querySelector('.cm-merge-a')?.textContent).toContain('line 100');
-		expect(el.querySelector('.cm-merge-b')?.textContent).toContain('line one hundred');
-		expect(el.querySelector('.so-pane-stats')?.textContent).toBe('+1−1');
-
-		const toggle = el.querySelector<HTMLElement>('.so-pane-action[aria-label="Show unified"]');
-		toggle?.click();
-		expect(layouts).toEqual(['unified']);
-		expect(el.querySelectorAll('.so-diff-view')).toHaveLength(1);
-		expect(el.querySelectorAll('.so-diff-unified .cm-editor')).toHaveLength(1);
-		expect(el.querySelector('.so-pane-action[aria-label="Show side by side"]')).not.toBeNull();
-
-		owner.removeChild(pane);
-		expect(el.querySelectorAll('.cm-editor')).toHaveLength(0);
-	});
-
-	it('opens find and go-to-line only when a file or diff is shown', async () => {
-		const dir = tempDir();
-		cleanup.push(dir);
-		write(dir, 'a.ts', 'const needle = 1;\n');
-		const { owner, el } = host();
-		const pane = owner.addChild(new ContentPane(el, { fontSize: 13 }));
-
-		expect(pane.hasEditor()).toBe(false);
-		expect(pane.openSearch()).toBe(false);
-
-		await pane.showFile(path.join(dir, 'a.ts'), 'a.ts');
-		expect(pane.hasEditor()).toBe(true);
-		el.querySelector<HTMLElement>('.so-pane-action[aria-label="Find in file"]')?.click();
+		await s.show('/x/a.ts', 'const needle = 1;\n', null);
+		expect(s.openSearch()).toBe(true);
 		expect(el.querySelector('.cm-panel.cm-search')).not.toBeNull();
-		expect(pane.goToLine()).toBe(true);
+		expect(s.goToLine()).toBe(true);
 		expect(el.querySelector('.cm-goto-line, .cm-gotoLine')).not.toBeNull();
 	});
 
-	it('highlights and selects linked lines, and reports the selection for links', async () => {
-		const dir = tempDir();
-		cleanup.push(dir);
-		write(dir, 'a.ts', Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join('\n'));
-		const { owner, el } = host();
-		const pane = owner.addChild(new ContentPane(el, { fontSize: 13, onLinkMenu: () => {} }));
+	it('highlights and selects linked lines, and links to the selection from the repository root', async () => {
+		const root = makeRepo({ 'src/a.ts': Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join('\n') });
+		cleanup.push(root);
+		const { surface: s, el } = surface();
+		await s.show(path.join(root, 'src/a.ts'), Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join('\n'), null);
 
-		await pane.showFile(path.join(dir, 'a.ts'), 'a.ts', { from: 3, to: 5 });
-		expect(el.querySelectorAll('.so-linked-line')).toHaveLength(3);
-		expect(pane.currentFile()?.selection).toEqual({ lines: { from: 3, to: 5 }, text: 'line 3\nline 4\nline 5' });
-		expect(el.querySelector('.so-pane-action[aria-label="Copy link"]')).not.toBeNull();
+		expect(s.showLines({ from: 3, to: 5 })).toBe(true);
+		expect(el.querySelectorAll('.heron-linked-line')).toHaveLength(3);
+		expect(s.selection()).toEqual({ lines: { from: 3, to: 5 }, text: 'line 3\nline 4\nline 5' });
+		expect(s.linkLocation()).toEqual({
+			loc: { folder: root, file: 'src/a.ts', lines: { from: 3, to: 5 } },
+			text: 'line 3\nline 4\nline 5',
+		});
 
-		// Opening the file normally clears the highlight and links to the whole file.
-		await pane.showFile(path.join(dir, 'a.ts'), 'a.ts');
-		expect(el.querySelectorAll('.so-linked-line')).toHaveLength(0);
-		expect(pane.currentFile()?.selection.lines).toBeNull();
+		// Loading the file again clears the highlight; without a selection the link is to the whole file.
+		await s.show(path.join(root, 'src/a.ts'), 'line 1\n', null);
+		expect(el.querySelectorAll('.heron-linked-line')).toHaveLength(0);
+		expect(s.linkLocation()?.loc.lines).toBeNull();
 	});
 
 	it('clamps linked lines past the end of the file', async () => {
-		const dir = tempDir();
-		cleanup.push(dir);
-		write(dir, 'a.ts', 'one\ntwo');
-		const { owner, el } = host();
-		const pane = owner.addChild(new ContentPane(el, { fontSize: 13 }));
-		await pane.showFile(path.join(dir, 'a.ts'), 'a.ts', { from: 2, to: 99 });
-		expect(el.querySelectorAll('.so-linked-line')).toHaveLength(1);
-		await pane.showFile(path.join(dir, 'a.ts'), 'a.ts', { from: 50, to: 60 });
-		expect(el.querySelectorAll('.so-linked-line')).toHaveLength(0);
-		expect(el.querySelector('.so-pane-action[aria-label="Copy link"]')).toBeNull();
+		const { surface: s, el } = surface();
+		await s.show('/x/a.ts', 'one\ntwo', null);
+		expect(s.showLines({ from: 2, to: 99 })).toBe(true);
+		expect(el.querySelectorAll('.heron-linked-line')).toHaveLength(1);
+		expect(s.showLines({ from: 50, to: 60 })).toBe(false);
 	});
 
-	it('shows a message instead of loading binary files', async () => {
-		const dir = tempDir();
-		cleanup.push(dir);
-		write(dir, 'img.png', Buffer.from([0x89, 0x50, 0, 0, 1]));
-		const { owner, el } = host();
-		const pane = owner.addChild(new ContentPane(el, { fontSize: 13 }));
-		await pane.showFile(path.join(dir, 'img.png'), 'img.png');
+	it('reuses one editor across files and destroys it on unload', async () => {
+		const { surface: s, el, owner } = surface();
+		await s.show('/x/a.py', 'print(1)\n', null);
+		const editor = el.querySelector('.cm-editor');
+		await s.show('/x/b.go', 'package main\n', null);
+		expect(el.querySelector('.cm-editor')).toBe(editor);
+		expect(el.textContent).toContain('package main');
+
+		owner.removeChild(s);
 		expect(el.querySelectorAll('.cm-editor')).toHaveLength(0);
-		expect(el.querySelector('.so-message-text')?.textContent).toBe('Binary file');
+	});
+
+	it('toggles a blame gutter that follows the shown file and opens commits on click', async () => {
+		const root = makeRepo({ 'a.ts': 'const first = 1;\n', 'b.ts': 'const second = first;\n' });
+		cleanup.push(root);
+		write(root, 'a.ts', 'const first = 1;\nconst third = 3;\n');
+		git(root, 'add', '-A');
+		git(root, '-c', 'user.name=Other', '-c', 'user.email=o@x', 'commit', '-q', '--author=Other <o@x>', '-m', 'Add third');
+		const opened: { root: string; commit: FileCommit }[] = [];
+		const { surface: s, el } = surface({ openCommit: (r, commit) => opened.push({ root: r, commit }) });
+		const changes: string[] = [];
+		s.onChange((c) => changes.push(c));
+		await s.show(path.join(root, 'a.ts'), 'const first = 1;\nconst third = 3;\n', null);
+
+		expect(s.toggleBlame()).toBe(true);
+		expect(s.blameShown).toBe(true);
+		expect(changes).toContain('blame');
+		await vi.waitFor(() => expect(el.querySelectorAll('.heron-blame-start')).toHaveLength(2));
+		expect(Array.from(el.querySelectorAll('.heron-blame-author')).map((a) => a.textContent)).toEqual(['Test', 'Other']);
+		expect(Array.from(el.querySelectorAll('.heron-blame-age')).map((x) => x.textContent)).toEqual(['now', 'now']);
+
+		await s.show(path.join(root, 'b.ts'), 'const second = first;\n', null);
+		await vi.waitFor(() => expect(Array.from(el.querySelectorAll('.heron-blame-author')).map((a) => a.textContent)).toEqual(['Test']));
+
+		el.querySelector('.heron-blame-start')?.parentElement?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+		await vi.waitFor(() => expect(opened).toHaveLength(1));
+		expect(opened[0]?.root).toBe(root);
+		expect(opened[0]?.commit).toMatchObject({ subject: 'init', path: 'b.ts', author: 'Test' });
+
+		expect(s.toggleBlame()).toBe(false);
+		expect(el.querySelectorAll('.heron-blame-gutter')).toHaveLength(0);
+	});
+
+	it('wraps the code view and follows the setting', () => {
+		const { owner, el } = host();
+		const code = owner.addChild(new CodeRenderer(el, 13, true));
+		code.setDocument('const a = 1;\n', 'a.ts', false);
+		expect(wrapped(el)).toBe(1);
+		code.setWordWrap(false);
+		expect(wrapped(el)).toBe(0);
 	});
 });
 
-describe('ChangesSection', () => {
-	it('keeps the selected row across refreshes (regression: highlight was wiped every poll)', async () => {
-		const { repo } = await repoWithChange();
-		const status = await repo.status();
+describe('diff renderer', () => {
+	const before = Array.from({ length: 200 }, (_, i) => `line ${i}`).join('\n');
+	const after = before.replace('line 100', 'line one hundred');
+
+	it('renders side by side with stats, and wraps both sides', () => {
 		const { owner, el } = host();
-		const opened: ChangeEntry[] = [];
-		const section = owner.addChild(new ChangesSection(el, { onOpenDiff: (e) => opened.push(e), onRefresh: () => {} }));
-		const snapshot: RepoSnapshot = { kind: 'repo', folder: repo.folder, repo, status };
+		const diff = owner.addChild(new DiffRenderer(el, 13, before, after, 'big.ts', 'split'));
+		expect(el.querySelectorAll('.heron-diff-split .cm-mergeView .cm-editor')).toHaveLength(2);
+		expect(el.querySelector('.cm-merge-a')?.textContent).toContain('line 100');
+		expect(el.querySelector('.cm-merge-b')?.textContent).toContain('line one hundred');
+		expect(diff.stats()).toEqual({ added: 1, removed: 1 });
+		expect(wrapped(el)).toBe(0);
+		diff.setWordWrap(true);
+		expect(wrapped(el)).toBe(2);
 
-		section.update(snapshot);
-		const row = el.querySelector<HTMLElement>('.so-change-row');
-		row?.click();
-		expect(opened).toHaveLength(1);
-
-		section.update({ ...snapshot, status: { ...status } });
-		const active = el.querySelectorAll('.so-change-row.is-active');
-		expect(active).toHaveLength(1);
-		expect(active[0]?.textContent).toContain('big.ts');
+		owner.removeChild(diff);
+		expect(el.querySelectorAll('.cm-editor')).toHaveLength(0);
 	});
 
-	it('shows a clear message per state', () => {
+	it('renders unified in one editor', () => {
 		const { owner, el } = host();
-		const section = owner.addChild(new ChangesSection(el, { onOpenDiff: () => {}, onRefresh: () => {} }));
-		section.update({ kind: 'no-git', folder: '/x' });
-		expect(el.querySelector('.so-empty')?.textContent).toBe('Git is not installed or not on PATH');
-		section.update({ kind: 'not-repo', folder: '/x' });
-		expect(el.querySelector('.so-empty')?.textContent).toBe('Not a git repository');
+		owner.addChild(new DiffRenderer(el, 13, before, after, 'big.ts', 'unified'));
+		expect(el.querySelectorAll('.heron-diff-unified .cm-editor')).toHaveLength(1);
 	});
 });
 
@@ -216,22 +172,23 @@ describe('CodeEmbed', () => {
 		expect(sliceLines('a\nb\n', 3, 4)).toBeNull();
 	});
 
-	it('renders the embedded lines with their real line numbers and opens on click', async () => {
+	it('renders the embedded lines with their real line numbers and opens on click, in a new tab with Mod', async () => {
 		const dir = tempDir();
 		cleanup.push(dir);
 		write(dir, 'src/a.ts', Array.from({ length: 30 }, (_, i) => `const v${i + 1} = ${i + 1};`).join('\n'));
 		const { owner, el } = host();
 		const location = { folder: dir, file: 'src/a.ts', lines: { from: 11, to: 12 } };
 		const opened: unknown[] = [];
-		owner.addChild(new CodeEmbed(el, { absPath: path.join(dir, 'src/a.ts'), location }, (l) => opened.push(l)));
+		owner.addChild(new CodeEmbed(el, { absPath: path.join(dir, 'src/a.ts'), location }, (l, newTab) => opened.push([l, newTab])));
 
 		await until(() => !!el.querySelector('.cm-content'));
 		expect(el.querySelector('.cm-content')?.textContent).toBe('const v11 = 11;const v12 = 12;');
 		expect(el.querySelector('.cm-lineNumbers')?.textContent).toContain('11');
-		expect(el.querySelector('.so-embed-label')?.textContent).toBe('src/a.ts:11-12');
+		expect(el.querySelector('.heron-embed-label')?.textContent).toBe('src/a.ts:11-12');
 
-		el.querySelector<HTMLElement>('.so-embed-header')?.click();
-		expect(opened).toEqual([location]);
+		el.querySelector<HTMLElement>('.heron-embed-header')?.click();
+		el.querySelector<HTMLElement>('.heron-embed-header')?.dispatchEvent(new MouseEvent('click', { metaKey: true, bubbles: true }));
+		expect(opened).toEqual([[location, false], [location, true]]);
 	});
 
 	it('updates when the file changes and explains missing files', async () => {
@@ -250,102 +207,10 @@ describe('CodeEmbed', () => {
 		expect(el.querySelector('.cm-content')?.textContent).toBe('after');
 
 		remove(path.join(dir, 'a.ts'));
-		await until(() => !!el.querySelector('.so-embed-message'));
-		expect(el.querySelector('.so-embed-message')?.textContent).toContain('File not found');
+		await until(() => !!el.querySelector('.heron-embed-message'));
+		expect(el.querySelector('.heron-embed-message')?.textContent).toContain('File not found');
 		expect(el.querySelectorAll('.cm-editor')).toHaveLength(0);
 
 		owner.removeChild(embed);
-	});
-});
-
-describe('file menu', () => {
-	const file = { absPath: '/repo/src/a.ts', relPath: 'src/a.ts', isDir: false, exists: true };
-	const titles = (groups: ReturnType<typeof fileMenuGroups>) => groups.map((g) => g.map((i) => i.title));
-
-	it('offers copy, reveal and open for existing files', () => {
-		expect(titles(fileMenuGroups(file))).toEqual([
-			['Copy path', 'Copy relative path'],
-			['Show in system explorer', 'Open in default app'],
-		]);
-	});
-
-	it('cannot open folders in an app, or deleted files at all', () => {
-		expect(titles(fileMenuGroups({ ...file, isDir: true }))[1]).toEqual(['Show in system explorer']);
-		expect(titles(fileMenuGroups({ ...file, exists: false }))).toEqual([['Copy path', 'Copy relative path']]);
-	});
-
-	it('puts extra items first and separates groups', () => {
-		const evt = new MouseEvent('contextmenu', { cancelable: true });
-		showFileMenu(evt, file, [[{ title: 'Open file', icon: 'file-text', run: () => {} }]]);
-		expect(evt.defaultPrevented).toBe(true);
-		expect(Menu.last?.items.map((i) => i?.title ?? '---')).toEqual([
-			'Open file', '---', 'Copy path', 'Copy relative path', '---', 'Show in system explorer', 'Open in default app',
-		]);
-	});
-});
-
-describe('FileTree', () => {
-	it('reports right-clicks on files and folders', async () => {
-		const dir = tempDir();
-		cleanup.push(dir);
-		write(dir, 'src/a.ts', '');
-		const { owner, el } = host();
-		const clicked: [string, boolean][] = [];
-		const tree = new FileTree(owner, el, true, () => {}, (_evt, p, isDir) => clicked.push([p, isDir]));
-		await tree.load(dir);
-		const srcRow = [...el.querySelectorAll<HTMLElement>('.so-tree-dir')].find((r) => r.textContent === 'src');
-		srcRow?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
-		expect(clicked).toEqual([[path.join(dir, 'src'), true]]);
-	});
-
-	it('picks up new files on refresh and keeps folders expanded', async () => {
-		const dir = tempDir();
-		cleanup.push(dir);
-		write(dir, 'src/a.ts', '');
-		const { owner, el } = host();
-		const tree = new FileTree(owner, el, true, () => {});
-		await tree.load(dir);
-
-		const srcRow = [...el.querySelectorAll<HTMLElement>('.so-tree-dir')].find((r) => r.textContent === 'src');
-		srcRow?.click();
-		await new Promise((r) => setTimeout(r, 20));
-		expect(el.textContent).toContain('a.ts');
-
-		write(dir, 'src/b.ts', '');
-		await tree.refresh();
-		expect(el.textContent).toContain('b.ts');
-		expect(srcRow?.getAttribute('aria-expanded')).toBe('true');
-	});
-
-	it('decorates changed files and their folders', async () => {
-		const dir = tempDir();
-		cleanup.push(dir);
-		write(dir, 'src/a.ts', '');
-		const { owner, el } = host();
-		const tree = new FileTree(owner, el, true, () => {});
-		await tree.load(dir);
-		tree.setDecorations(new Map(), new Set([dir, path.join(dir, 'src')]));
-		const srcRow = [...el.querySelectorAll<HTMLElement>('.so-tree-dir')].find((r) => r.textContent === 'src');
-		expect(srcRow?.classList.contains('so-git-dirty')).toBe(true);
-	});
-
-	it('navigates with the keyboard', async () => {
-		const dir = tempDir();
-		cleanup.push(dir);
-		write(dir, 'src/a.ts', '');
-		write(dir, 'z.txt', '');
-		const selected: string[] = [];
-		const { owner, el } = host();
-		const tree = new FileTree(owner, el, true, (p) => selected.push(p));
-		await tree.load(dir);
-
-		const key = (k: string) => (el.ownerDocument.activeElement ?? el).dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
-		el.focus();
-		key('ArrowDown'); // root → src
-		key('ArrowRight'); // expand src
-		await new Promise((r) => setTimeout(r, 20));
-		key('ArrowRight'); // move into src → a.ts
-		key('Enter');
-		expect(selected).toEqual([path.join(dir, 'src', 'a.ts')]);
 	});
 });

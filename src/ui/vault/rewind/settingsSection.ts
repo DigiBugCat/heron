@@ -1,10 +1,10 @@
 import { Setting } from 'obsidian';
-import type SourceObserverPlugin from '../../../main';
+import type HeronPlugin from '../../../main';
 import { clamp, REWIND_AGE_RANGE, REWIND_SIZE_RANGE } from '../../../settings';
 import { revealInSystem } from '../../../utils/system';
 
 /** The Rewind section of Heron's settings tab. */
-export function renderRewindSettings(containerEl: HTMLElement, plugin: SourceObserverPlugin) {
+export function renderRewindSettings(containerEl: HTMLElement, plugin: HeronPlugin) {
 	const settings = plugin.settings;
 	new Setting(containerEl).setName('Rewind').setHeading();
 

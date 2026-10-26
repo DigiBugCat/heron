@@ -22,14 +22,6 @@ export async function isDirectory(p: string): Promise<boolean> {
 	}
 }
 
-export async function isFile(p: string): Promise<boolean> {
-	try {
-		return (await fsp.stat(p)).isFile();
-	} catch {
-		return false;
-	}
-}
-
 /**
  * A short name for `absPath`: '/'-separated and relative to `folder` when
  * inside it, otherwise absolute with the home folder shown as `~`.

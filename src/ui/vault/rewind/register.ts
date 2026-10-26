@@ -1,11 +1,13 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
-import type SourceObserverPlugin from '../../../main';
+import * as path from 'path';
+import type HeronPlugin from '../../../main';
 import { hookSettings, installHookScript } from '../../../services/rewind/claudeHook';
 import type { Moment, MomentFile } from '../../../services/rewind/moments';
 import { heronDataDir } from '../../../utils/appData';
 import { copyToClipboard } from '../../../utils/system';
 import { vaultBasePath } from '../codeTabs';
 import { momentTime, RewindActions } from './actions';
+import { MAX_COMMITS } from './CommitList';
 import { Rewind } from './Rewind';
 import { REWIND_DIFF_VIEW_TYPE, RewindDiffState, RewindDiffView } from './RewindDiffView';
 import { REWIND_SNAPSHOT_VIEW_TYPE, RewindSnapshotView, SnapshotState } from './RewindSnapshotView';
@@ -36,7 +38,7 @@ class HookSetupModal extends Modal {
  * Sets up Rewind: the recorder, its panel and tabs, and its commands.
  * Returns null on adapters without a folder on disk.
  */
-export function registerRewind(plugin: SourceObserverPlugin): Rewind | null {
+export function registerRewind(plugin: HeronPlugin): Rewind | null {
 	const base = vaultBasePath(plugin);
 	const git = plugin.vaultGit;
 	if (!base || !git) return null;
@@ -63,6 +65,17 @@ export function registerRewind(plugin: SourceObserverPlugin): Rewind | null {
 		viewAsOf: (m, f) => { void viewAsOf(m, f); },
 		restoreFile: (m, f, side) => { void actions.restoreFile(m, f, side); },
 		undoMoment: (m) => { void actions.undoMoment(m); },
+		fileCommits: async (vaultPath) => {
+			const at = git.repoAt(vaultPath);
+			const repoPath = at?.repo.repoPath(path.join(base, vaultPath));
+			return at && repoPath ? at.repo.fileHistory(repoPath, MAX_COMMITS) : null;
+		},
+		openCommit: (vaultPath, commit, newTab) => {
+			const at = git.repoAt(vaultPath);
+			// The repository's folder in the vault (its root), so the diff's file opens as a vault file.
+			if (at) void plugin.openCommitDiff(at.repo.folder, commit, newTab);
+		},
+		onGitChange: (l) => git.onChange(l),
 	}));
 	plugin.registerView(REWIND_DIFF_VIEW_TYPE, (leaf) => new RewindDiffView(leaf, {
 		fontSize: () => plugin.settings.fontSize,

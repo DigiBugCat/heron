@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countChanges, groupChanges, parseStatusV2, primaryKind } from '../src/git/status';
+import { badgeFor, groupChanges, parseStatusV2, primaryKind } from '../src/git/status';
 
 const Z = '\0';
 
@@ -73,15 +73,13 @@ describe('grouping and counting', () => {
 		expect(entries.filter((e) => e.file.path === 'new.txt').map((e) => [e.group, e.kind])).toEqual([['unstaged', 'untracked']]);
 	});
 
-	it('counts every file exactly once', () => {
-		// Previously "AM" was counted as both new and modified.
-		const counts = countChanges(files);
-		expect(counts).toEqual({ added: 2, modified: 2, deleted: 1, conflicted: 1 });
-		expect(counts.added + counts.modified + counts.deleted + counts.conflicted).toBe(files.length);
-	});
-
 	it('classifies renames', () => {
 		const moved = files.find((f) => f.path === 'moved.ts');
 		expect(moved && primaryKind(moved)).toBe('renamed');
+	});
+
+	it('gives every file one kind, shown as one letter', () => {
+		// Previously "AM" was counted as both new and modified.
+		expect(files.map((f) => badgeFor(primaryKind(f))).sort().join('')).toBe('!ADMRU');
 	});
 });

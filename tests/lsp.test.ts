@@ -4,7 +4,6 @@ import { enclosingSymbols, flattenDocumentSymbols, outlineTree, toFileLocations,
 import { parseCommand, serverForFile } from '../src/lsp/servers';
 import { mergePaths, pathFromShellOutput } from '../src/lsp/shellEnv';
 import { sanitizeSettings } from '../src/settings';
-import { NavHistory } from '../src/ui/pane/navHistory';
 
 describe('framing', () => {
 	it('round-trips messages, counting UTF-8 bytes rather than characters', () => {
@@ -101,31 +100,6 @@ describe('locations', () => {
 		const ws = workspaceSymbols([...info, { name: 'y', kind: 5, location: { uri: 'file:///b.ts' } }], 10);
 		expect(ws.map((s) => [s.absPath, s.position.line])).toEqual([['/a.ts', 3], ['/b.ts', 0]]);
 		expect(workspaceSymbols(ws, 1)).toHaveLength(0);
-	});
-});
-
-describe('NavHistory', () => {
-	const same = (a: number, b: number) => a === b;
-
-	it('goes back and forward like a browser, and a new jump clears forward', () => {
-		const h = new NavHistory<number>(same);
-		h.record(1);
-		h.record(2);
-		expect(h.back(3)).toBe(2);
-		expect(h.back(2)).toBe(1);
-		expect(h.back(1)).toBeNull();
-		expect(h.forward(1)).toBe(2);
-		expect(h.canGoForward()).toBe(true);
-		h.record(2);
-		expect(h.canGoForward()).toBe(false);
-	});
-
-	it('does not record the same place twice in a row', () => {
-		const h = new NavHistory<number>(same);
-		h.record(1);
-		h.record(1);
-		expect(h.back(5)).toBe(1);
-		expect(h.canGoBack()).toBe(false);
 	});
 });
 

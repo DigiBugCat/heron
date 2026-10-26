@@ -25,7 +25,7 @@ export abstract class PaneRenderer extends Component {
 
 	constructor(parent: HTMLElement, cls: string) {
 		super();
-		this.el = parent.createDiv({ cls: `so-renderer ${cls}` });
+		this.el = parent.createDiv({ cls: `heron-renderer ${cls}` });
 	}
 
 	onunload() {
@@ -115,7 +115,7 @@ function clampLines(doc: Text, lines: LineRange): LineRange | null {
 	return { from: lines.from, to: Math.min(lines.to, doc.lines) };
 }
 
-const linkedLine = Decoration.line({ class: 'so-linked-line' });
+const linkedLine = Decoration.line({ class: 'heron-linked-line' });
 
 function linkedLinesHighlight(doc: Text, lines: LineRange | null): Extension {
 	const range = lines && clampLines(doc, lines);
@@ -159,7 +159,7 @@ export class CodeRenderer extends PaneRenderer {
 	private editable = false;
 
 	constructor(parent: HTMLElement, private fontSize: number, private wordWrap = false) {
-		super(parent, 'so-code-view');
+		super(parent, 'heron-code-view');
 	}
 
 	onload() {
@@ -289,6 +289,26 @@ export class CodeRenderer extends PaneRenderer {
 		this.view?.dispatch({ effects: this.lsp.reconfigure(extension ?? []) });
 	}
 
+	/**
+	 * Highlights and selects `lines` in the current document and scrolls to
+	 * them, as a link to them does; false when they start past the end.
+	 */
+	showLines(lines: LineRange): boolean {
+		const view = this.view;
+		const range = view && clampLines(view.state.doc, lines);
+		if (!view || !range) return false;
+		const { doc } = view.state;
+		const selection = EditorSelection.range(doc.line(range.from).from, doc.line(range.to).to);
+		view.dispatch({
+			selection,
+			effects: [
+				this.highlight.reconfigure(linkedLinesHighlight(doc, range)),
+				EditorView.scrollIntoView(selection.from, { y: 'center' }),
+			],
+		});
+		return true;
+	}
+
 	/** Moves the cursor to `pos` and scrolls it to the middle of the view. */
 	moveCursor(pos: TextPosition) {
 		const view = this.view;
@@ -375,7 +395,7 @@ export class DiffRenderer extends PaneRenderer {
 		private wordWrap = false,
 		private sideExtensions: DiffSideExtensions = {},
 	) {
-		super(parent, `so-diff-view so-diff-${layout}`);
+		super(parent, `heron-diff-view heron-diff-${layout}`);
 	}
 
 	onload() {
@@ -473,13 +493,13 @@ export class DiffRenderer extends PaneRenderer {
 /** Centered icon + message, used for empty, binary, oversized and error states. */
 export class MessageRenderer extends PaneRenderer {
 	constructor(parent: HTMLElement, private icon: string, private message: string, private detail?: string) {
-		super(parent, 'so-message');
+		super(parent, 'heron-message');
 	}
 
 	onload() {
-		const iconEl = this.el.createDiv({ cls: 'so-message-icon' });
+		const iconEl = this.el.createDiv({ cls: 'heron-message-icon' });
 		setIcon(iconEl, this.icon);
-		this.el.createDiv({ cls: 'so-message-text', text: this.message });
-		if (this.detail) this.el.createDiv({ cls: 'so-message-detail', text: this.detail });
+		this.el.createDiv({ cls: 'heron-message-text', text: this.message });
+		if (this.detail) this.el.createDiv({ cls: 'heron-message-detail', text: this.detail });
 	}
 }
